@@ -129,6 +129,7 @@ Done:
 	  - added `json` (`loads`) + dict/list indexing needed for `json.loads` outputs
 	- Verified: `cargo test` + `cargo clippy --all-targets --all-features -- -D warnings` pass (with `CARGO_HOME=$PWD/.cargo-home`).
 	- Initialized git history: created first commit on branch `main`; ensured `.cargo-home/` is gitignored.
+	- Published repo to GitHub: `stealthinu/python-string-repl` (public), `origin` configured, `main` pushed.
 
 Now:
 - Verify end-to-end replacement:
