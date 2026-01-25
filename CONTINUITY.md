@@ -22,7 +22,7 @@ State:
 - Upstream repos and benchmark datasets are cloned/downloaded locally; paper artifacts extracted into a runnable corpus.
 - Next milestone: generate/obtain remaining eval artifacts (S-NIAH), then run a probe harness on real benchmark inputs to
   empirically capture what the baseline REPL allows/forbids (imports, builtins, comprehensions, slicing, regex, etc.).
-- Git repo exists but currently has no commits yet (work is uncommitted/untracked).
+- Git repo has an initial commit on branch `main`; remote not yet configured/pushed.
 
 Done:
 - Read using-superpowers skill.
@@ -128,6 +128,7 @@ Done:
 	  - current allowlist bindings: `re` (`search`, `findall`, `IGNORECASE`, `DOTALL`), `base64` (`b64decode`), `binascii` (`hexlify`), `zlib` (`decompress`, `MAX_WBITS`)
 	  - added `json` (`loads`) + dict/list indexing needed for `json.loads` outputs
 	- Verified: `cargo test` + `cargo clippy --all-targets --all-features -- -D warnings` pass (with `CARGO_HOME=$PWD/.cargo-home`).
+	- Initialized git history: created first commit on branch `main`; ensured `.cargo-home/` is gitignored.
 
 Now:
 - Verify end-to-end replacement:
@@ -135,6 +136,7 @@ Now:
   - Decide whether to re-run the full 30-task eval with the “observability patches” (base64/zlib injected) to generate a new transcript for full parity replay.
 - Update Japanese docs/specs to include the observed output/state quirks (`No code to execute`, echo-last-expr, error-state carry).
  - Expand pre-injected module set to match unofficial baseline (seed set), then re-run transcript extraction to see which symbols are actually used.
+- Publish this repo to the user's GitHub (create remote + push).
 
 Next:
 - (If needed) Add a switch/config to run Rust REPL with/without `base64`/`zlib` injected, to match either baseline transcripts or the “observability” configuration.
