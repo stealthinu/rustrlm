@@ -1,6 +1,7 @@
 Goal (incl. success criteria):
 - Decide and document the intended spec for a secure, deterministic, string-focused Python-REPL-compatible subset (Rust),
   by extracting expected REPL behavior from paper test data and comparing against official/unofficial implementations.
+- Rewrite the non-official Recursive Language Models (RLM) runner in Rust, separating the REPL engine into a standalone library crate and the RLM orchestration into an independent crate/binary, and validate end-to-end with saved transcripts/evals.
 
 Constraints/Assumptions:
 - Follow AGENTS.md instructions for this workspace.
@@ -17,12 +18,15 @@ Key decisions:
 - Defer language-feature decisions (e.g. `re`) until behavior is confirmed by running the baseline(s).
 - Import policy (Rust target): allow `import ...` / `from ... import ...` as a no-op that *only* binds from pre-injected, allowlisted modules/symbols; never perform dynamic importing.
 - Import allowlist expansion strategy: (1) seed with the same “safe stdlib” modules the unofficial Python backend pre-injects, and (2) iteratively add only the specific symbols observed in transcripts/evals.
+- RLM rewrite LLM client: OpenAI API fixed; read `OPENAI_API_KEY` from `.env`; use `gpt-5.2` (root) + `gpt-5-mini` (recursive).
 
 State:
 - Upstream repos and benchmark datasets are cloned/downloaded locally; paper artifacts extracted into a runnable corpus.
 - Next milestone: generate/obtain remaining eval artifacts (S-NIAH), then run a probe harness on real benchmark inputs to
   empirically capture what the baseline REPL allows/forbids (imports, builtins, comprehensions, slicing, regex, etc.).
 - Git repo has an initial commit on branch `main`; remote not yet configured/pushed.
+ - New milestone: define Rust workspace architecture (crates split), then port the RLM control loop and logging from the unofficial Python implementation.
+ - Workspace split started: `python_string_repl` moved under `crates/`; REPL CLI (`python_string_repl` binary) preserved via `python_string_repl_cli`.
 
 Done:
 - Read using-superpowers skill.
@@ -130,6 +134,7 @@ Done:
 	- Verified: `cargo test` + `cargo clippy --all-targets --all-features -- -D warnings` pass (with `CARGO_HOME=$PWD/.cargo-home`).
 	- Initialized git history: created first commit on branch `main`; ensured `.cargo-home/` is gitignored.
 	- Published repo to GitHub: `stealthinu/python-string-repl` (public), `origin` configured, `main` pushed.
+	- Began Rust workspace split (crate separation) and added RLM runner design doc: `docs/plans/2026-01-25-rust-rlm-runner-design.md`.
 
 Now:
 - Verify end-to-end replacement:
