@@ -1,0 +1,25 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# Rust
+target/
+.cargo-home/
+
+# Local caches / large artifacts (not for git)
+upstream/
+vendor/python/
+extracted/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
