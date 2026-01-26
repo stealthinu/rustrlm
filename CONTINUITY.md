@@ -141,13 +141,14 @@ Done:
 	- Published repo to GitHub: `stealthinu/rustrlm` (public), `origin` configured, `main` pushed.
 	- Began Rust workspace split (crate separation) and added RLM runner design doc: `docs/plans/2026-01-25-rust-rlm-runner-design.md`.
 	- Prepared a project-local Codex home at `/home/stealth/restrlm/.codex` by copying relevant `~/.codex` files and rewriting session `cwd` from `/home/stealth/python-string-repl` to `/home/stealth/restrlm` (sandbox prevents edits under `/home/stealth/.codex`).
+	- Wrote Retrieval API spec (inline documents) and implemented HTTP server endpoints:
+	  - Spec: `docs/rlm/plans/2026-01-26-rustrlm-retrieval-api-design.md`
+	  - Server: `GET /v1/health`, `GET /v1/version`, `POST /v1/retrieve` (axum)
+	  - Tests: `crates/rlm_runner/tests/retrieve_api_tests.rs` (TDD, green)
 
 Now:
-- Re-organize docs/TODO for an RLM-first repository:
-  - `docs/rlm` (product-facing), `docs/repl` (embedded REPL), `docs/research` (evidence)
-  - Update internal references after moves
-- Add REPL feature gaps observed in transcripts to TODO (NameError/ForbiddenSyntax hot spots).
 - Implement Rust RLM runner: CLI, transcript JSONL, OpenAI client, dataset loaders.
+- Build Python client + LangChain/LlamaIndex retriever adapters on top of the Retrieval API.
 - Write a detailed Retrieval API spec (HTTP endpoints, schemas, trace/logging, limits, error model) before implementation.
 - Verify `/resume` shows prior sessions when launching Codex with `CODEX_HOME=/home/stealth/restrlm/.codex`.
 - Make `/resume` work without `CODEX_HOME` override (prefer migrating real `~/.codex` data; fallback: auto-set `CODEX_HOME` via shell/direnv).
