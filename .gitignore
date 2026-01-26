@@ -24,3 +24,5 @@ extracted/
 .DS_Store
 .idea/
 .vscode/
+
+.worktrees/
