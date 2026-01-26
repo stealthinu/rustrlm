@@ -24,6 +24,10 @@ Key decisions:
 - Repo strategy: keep a single monorepo/workspace; do not split into separate GitHub repos for REPL vs RLM.
 - Product direction: position RustRLM as a “retrieval layer” alternative to RAG (broad sense). First integration target is retriever replacement in LangChain/LlamaIndex.
 - Retrieval integration: expose a stable HTTP JSON Retrieval API + a small Python client; framework-specific adapters are thin type/shape conversions.
+- In-process usage: add a Rust library API for retrieval and a Python binding (PyO3). Initial Python distribution is source-build only; wheels later if demand.
+- In-process API shape: function-based (no class-based client) for Python and Rust.
+- Document input: `id` is optional; auto-assign a stable id when missing.
+- LangChain adapter stores score in `Document.metadata["score"]`.
 
 State:
 - Upstream repos and benchmark datasets are cloned/downloaded locally; paper artifacts extracted into a runnable corpus.
@@ -141,19 +145,21 @@ Done:
 	- Published repo to GitHub: `stealthinu/rustrlm` (public), `origin` configured, `main` pushed.
 	- Began Rust workspace split (crate separation) and added RLM runner design doc: `docs/plans/2026-01-25-rust-rlm-runner-design.md`.
 	- Prepared a project-local Codex home at `/home/stealth/restrlm/.codex` by copying relevant `~/.codex` files and rewriting session `cwd` from `/home/stealth/python-string-repl` to `/home/stealth/restrlm` (sandbox prevents edits under `/home/stealth/.codex`).
-	- Wrote Retrieval API spec (inline documents) and implemented HTTP server endpoints:
-	  - Spec: `docs/rlm/plans/2026-01-26-rustrlm-retrieval-api-design.md`
-	  - Server: `GET /v1/health`, `GET /v1/version`, `POST /v1/retrieve` (axum)
-	  - Tests: `crates/rlm_runner/tests/retrieve_api_tests.rs` (TDD, green)
+- Wrote Retrieval API spec (inline documents) and implemented HTTP server endpoints:
+  - Spec: `docs/rlm/plans/2026-01-26-rustrlm-retrieval-api-design.md`
+  - Server: `GET /v1/health`, `GET /v1/version`, `POST /v1/retrieve` (axum)
+  - Tests: `crates/rlm_runner/tests/retrieve_api_tests.rs` (TDD, green)
+- Wrote design doc for in-process retrieval API (function-based):
+  - `docs/plans/2026-01-26-inprocess-retrieval-design.md`
 
 Now:
-- Implement Rust RLM runner: CLI, transcript JSONL, OpenAI client, dataset loaders.
-- Build Python client + LangChain/LlamaIndex retriever adapters on top of the Retrieval API.
-- Write a detailed Retrieval API spec (HTTP endpoints, schemas, trace/logging, limits, error model) before implementation.
-- Verify `/resume` shows prior sessions when launching Codex with `CODEX_HOME=/home/stealth/restrlm/.codex`.
-- Make `/resume` work without `CODEX_HOME` override (prefer migrating real `~/.codex` data; fallback: auto-set `CODEX_HOME` via shell/direnv).
+- Design and implement in-process retrieval API (Rust library + PyO3) with a function-based interface, TDD.
+- Keep HTTP Retrieval API + adapters delegating to the same core retrieval logic.
+- Validate function API shape against LangChain/LlamaIndex retriever expectations and adjust spec if needed.
 
 Next:
+- Add function API signature docs + examples for Rust and Python; update README/docs.
+- Implement PyO3 bindings with source-build packaging scaffold.
 - If needed, run a one-time manual migration in the real home dir (`/home/stealth/.codex`) outside sandbox: back up `~/.codex/sessions` then rewrite `session_meta.payload.cwd` to the new path.
 - (If needed) Add a switch/config to run Rust REPL with/without `base64`/`zlib` injected, to match either baseline transcripts or the “observability” configuration.
 - Expand system tests with a handful of representative transcript-derived snippets and keep them stable as golden tests.
