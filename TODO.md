@@ -1,7 +1,7 @@
 # TODO
 
-このリポジトリは「安全・決定的・文字列操作に特化した Python-REPL 互換サブセット（Rust実装）」の仕様策定と、
-その根拠（論文/実装/テストデータ）を整理するための作業用リポジトリです。
+このリポジトリは **RustRLM**（Rust製 Recursive Language Models ランナー）と、
+その内部で使う **軽量なPython REPLサブセット（Rust実装）** を同一リポジトリで開発するための作業用リポジトリです。
 
 対象は "Recursive Language Models" (arXiv:2512.24601) と、その公式/非公式実装です。
 

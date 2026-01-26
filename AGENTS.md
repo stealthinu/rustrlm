@@ -1,8 +1,9 @@
 # AGENTS.md
 
 ## Project summary
-- Build a lightweight, secure Python-REPL-compatible subset focused on string operations for Recursive Language Models (RLM).
-- Rust implementation, following Rust best practices for naming, layout, and tooling.
+- Build RustRLM: a Rust implementation of Recursive Language Models (RLM) that uses an embedded, lightweight, secure
+  Python-REPL-compatible subset focused on string operations.
+- The REPL engine is a Rust library crate; the RLM runner is a separate Rust crate/binary in the same workspace.
 
 ## Scope and guardrails
 ### Do
@@ -12,7 +13,7 @@
 - Write tests first (t_wada TDD style): red -> green -> refactor.
 
 ### Don't
-- Do not allow file I/O, networking, subprocesses, dynamic code loading, or eval/exec.
+- (REPL engine) Do not allow file I/O, networking, subprocesses, dynamic code loading, or eval/exec.
 - Do not expose `__import__`, `open`, OS env access, or reflection hooks.
 - Do not add non-essential features outside the RLM string-processing scope.
 

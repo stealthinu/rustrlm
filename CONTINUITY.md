@@ -2,6 +2,7 @@ Goal (incl. success criteria):
 - Decide and document the intended spec for a secure, deterministic, string-focused Python-REPL-compatible subset (Rust),
   by extracting expected REPL behavior from paper test data and comparing against official/unofficial implementations.
 - Rewrite the non-official Recursive Language Models (RLM) runner in Rust, separating the REPL engine into a standalone library crate and the RLM orchestration into an independent crate/binary, and validate end-to-end with saved transcripts/evals.
+ - Treat this repo as the Rust RLM project (end-to-end runnable), with the Python REPL subset as an internal, embedded library crate (no repo split).
 
 Constraints/Assumptions:
 - Follow AGENTS.md instructions for this workspace.
@@ -19,14 +20,15 @@ Key decisions:
 - Import policy (Rust target): allow `import ...` / `from ... import ...` as a no-op that *only* binds from pre-injected, allowlisted modules/symbols; never perform dynamic importing.
 - Import allowlist expansion strategy: (1) seed with the same “safe stdlib” modules the unofficial Python backend pre-injects, and (2) iteratively add only the specific symbols observed in transcripts/evals.
 - RLM rewrite LLM client: OpenAI API fixed; read `OPENAI_API_KEY` from `.env`; use `gpt-5.2` (root) + `gpt-5-mini` (recursive).
+- Repo strategy: keep a single monorepo/workspace; do not split into separate GitHub repos for REPL vs RLM.
 
 State:
 - Upstream repos and benchmark datasets are cloned/downloaded locally; paper artifacts extracted into a runnable corpus.
 - Next milestone: generate/obtain remaining eval artifacts (S-NIAH), then run a probe harness on real benchmark inputs to
   empirically capture what the baseline REPL allows/forbids (imports, builtins, comprehensions, slicing, regex, etc.).
-- Git repo has an initial commit on branch `main`; remote not yet configured/pushed.
- - New milestone: define Rust workspace architecture (crates split), then port the RLM control loop and logging from the unofficial Python implementation.
- - Workspace split started: `python_string_repl` moved under `crates/`; REPL CLI (`python_string_repl` binary) preserved via `python_string_repl_cli`.
+- GitHub repo exists: `stealthinu/rustrlm` (public). `origin` configured; `main` pushed.
+- Workspace split done: `python_string_repl` is a library crate under `crates/`; REPL CLI binary name `python_string_repl` preserved via `python_string_repl_cli`.
+- Next milestone: implement Rust `rlm_runner` (OpenAI API fixed) with transcript logging and dataset runners.
 
 Done:
 - Read using-superpowers skill.
@@ -133,7 +135,7 @@ Done:
 	  - added `json` (`loads`) + dict/list indexing needed for `json.loads` outputs
 	- Verified: `cargo test` + `cargo clippy --all-targets --all-features -- -D warnings` pass (with `CARGO_HOME=$PWD/.cargo-home`).
 	- Initialized git history: created first commit on branch `main`; ensured `.cargo-home/` is gitignored.
-	- Published repo to GitHub: `stealthinu/python-string-repl` (public), `origin` configured, `main` pushed.
+	- Published repo to GitHub: `stealthinu/rustrlm` (public), `origin` configured, `main` pushed.
 	- Began Rust workspace split (crate separation) and added RLM runner design doc: `docs/plans/2026-01-25-rust-rlm-runner-design.md`.
 
 Now:
@@ -142,7 +144,7 @@ Now:
   - Decide whether to re-run the full 30-task eval with the “observability patches” (base64/zlib injected) to generate a new transcript for full parity replay.
 - Update Japanese docs/specs to include the observed output/state quirks (`No code to execute`, echo-last-expr, error-state carry).
  - Expand pre-injected module set to match unofficial baseline (seed set), then re-run transcript extraction to see which symbols are actually used.
-- Publish this repo to the user's GitHub (create remote + push).
+- Implement Rust RLM runner: CLI, transcript JSONL, OpenAI client, dataset loaders.
 
 Next:
 - (If needed) Add a switch/config to run Rust REPL with/without `base64`/`zlib` injected, to match either baseline transcripts or the “observability” configuration.
