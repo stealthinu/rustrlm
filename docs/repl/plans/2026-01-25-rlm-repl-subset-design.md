@@ -4,7 +4,7 @@
 Rustで実装する **安全・決定的・文字列処理中心** のPython-REPL互換サブセット仕様を定義する。
 
 根拠ログ:
-- 最終観測（union）: `docs/rlm/eval/final-observed-repl-surface.md`
+- 最終観測（union）: `docs/repl/final-observed-repl-surface.md`
 - ベースライン実測: `extracted/runs/unofficial_tasks30_transcript.jsonl`
 - import失敗タスク再実行（base64/zlib注入）: `extracted/runs/unofficial_importfail_rerun_transcript.jsonl`
 
@@ -141,8 +141,8 @@ zlib（安全版）:
 この設計をRustで実装する前に、テストを“仕様”として固定する。
 
 ### 6.1 ゴールデン（実測から）
-- `docs/rlm/eval/final-observed-repl-surface.md` の代表スニペットを最小ケースに落として、受理/拒否を決める
-- base64/zlib採用時は `docs/rlm/eval/unofficial-importfail-rerun-summary.md` の代表パターンを追加
+- `docs/repl/final-observed-repl-surface.md` の代表スニペットを最小ケースに落として、受理/拒否を決める
+- base64/zlib採用時は `docs/research/eval/unofficial-importfail-rerun-summary.md` の代表パターンを追加
 
 ### 6.2 拒否テスト（安全）
 - import, open, __import__, getattr/globals/locals, dunderアクセスは必ず拒否
@@ -154,4 +154,3 @@ zlib（安全版）:
 ## 7) 未決事項（ここで確定が必要）
 - base64/binascii/zlib を最終サブセットに含めるか（含めるなら上限/提供APIを確定）
 - `for`/`try`/`FunctionDef` を許可するか（観測では出たが、最小化の観点で落とす選択肢もある）
-

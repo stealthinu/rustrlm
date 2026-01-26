@@ -44,7 +44,7 @@
 - 正規表現の例: `re.split(...)`
 
 ### 非公式実装（ysz/recursive-llm）の挙動
-（詳細ログ: `docs/rlm/unofficial-baseline-run.md`, `docs/rlm/eval/repl-probe-results.md`）
+（詳細ログ: `docs/research/unofficial-baseline-run.md`, `docs/research/eval/repl-probe-results.md`）
 - `import` は遮断される（`__import__ not found`）
 - ただし `re` はグローバルに注入されており、import無しで `re.findall/...` が動く
 - list comprehension の式側で外側変数（`context`）を参照すると NameError になるケースがある

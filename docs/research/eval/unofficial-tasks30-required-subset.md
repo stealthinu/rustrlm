@@ -2,7 +2,7 @@
 
 対象ログ:
 - `extracted/runs/unofficial_tasks30_transcript.jsonl`
-- 集計: `extracted/runs/unofficial_tasks30_repl_analysis.json` / `docs/rlm/eval/unofficial-tasks30-repl-features.md`
+- 集計: `extracted/runs/unofficial_tasks30_repl_analysis.json` / `docs/research/eval/unofficial-tasks30-repl-features.md`
 
 ここでは「この30タスクで **実際にREPLに投入され、かつ成功した** スニペット」から、
 Rust実装で必要になりそうな機能を allowlist 形式で抽象化する。
@@ -62,7 +62,7 @@ Rust実装で必要になりそうな機能を allowlist 形式で抽象化す�
 
 ## 7) 追加実験: base64/zlib を“事前注入”した場合に増える機能（参考）
 「import失敗タスクだけを再実行し、`base64/binascii/zlib(安全)` を globals に注入」した場合の差分を別途測定した:
-- まとめ: `docs/rlm/eval/unofficial-importfail-rerun-summary.md`
+- まとめ: `docs/research/eval/unofficial-importfail-rerun-summary.md`
 
 増える傾向（要点）:
 - 関数/属性呼び出し: `base64.b64decode`, `zlib.decompress`, `binascii.hexlify`, `re.findall`, `*.decode`

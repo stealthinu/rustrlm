@@ -25,4 +25,4 @@ REPL仕様に関わる不一致/不具合を把握する。
 仕様化に際しては、この挙動を互換として採用するか、Rust実装側で「直した挙動」にするかを決める必要がある。
 
 補足:
-- 同様の NameError は、実データを使った簡易プローブでも再現している（`docs/rlm/eval/repl-probe-results.md`）。
+- 同様の NameError は、実データを使った簡易プローブでも再現している（`docs/research/eval/repl-probe-results.md`）。

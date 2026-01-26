@@ -1,9 +1,39 @@
 # TODO
 
 このリポジトリは **RustRLM**（Rust製 Recursive Language Models ランナー）と、
-その内部で使う **軽量なPython REPLサブセット（Rust実装）** を同一リポジトリで開発するための作業用リポジトリです。
+内部で使う **軽量・決定的な Python REPL サブセット（Rust実装, allowlist方式）** を同一リポジトリで開発します。
 
-対象は "Recursive Language Models" (arXiv:2512.24601) と、その公式/非公式実装です。
+対象は "Recursive Language Models" (arXiv:2512.24601) と、その公式/非公式実装・評価データです。
+
+---
+
+## 優先度A: RustRLM（RLMランナー本体）
+- [ ] `crates/rlm_runner` を「このリポの主機能」として完成させる
+  - [ ] CLI: `run --dataset --task-count --seed --out-jsonl --transcript-jsonl`
+  - [ ] トランスクリプトJSONL（既存解析ツールで読める互換フォーマット）
+  - [ ] OpenAI API（固定）: `OPENAI_API_KEY`、root=`gpt-5.2` / recursive=`gpt-5-mini`
+  - [ ] ループ: max_depth / max_iterations / timeout / retries
+  - [ ] REPL呼び出し: 内包ライブラリ `crates/python_string_repl` を直接呼ぶ（subprocess無し）
+- [ ] データセットローダ（ローカルキャッシュ参照）
+  - [ ] BrowseComp+（Parquet）
+  - [ ] LongBench-v2 Code repo QA（JSON）
+  - [ ] OOLONG-synth-small（JSONL）
+  - [ ] S-NIAH（`extracted/eval/s_niah.jsonl`）
+- [ ] “置換検証”: 既存保存ログ/代表タスクで、RustRLMのログが再現可能か確認
+
+## 優先度B: 内包REPLサブセット（互換と安全性）
+- [ ] 実ログ/トランスクリプト由来の不足機能をTDDで追加（必要最小限）
+  - [ ] `str()` / `str.replace()` 等（現在のログで NameError が出たものから）
+  - [ ] 追加が必要なら `re.split` など（観測に基づく）
+  - [ ] import allowlist（観測ベースでシンボル追加。動的importはしない）
+- [ ] システムテストを「代表REPLサンプル」から10件程度のゴールデンに固定
+
+## 優先度C: ドキュメント/運用
+- [x] docsを目的別に整理（`docs/rlm` / `docs/repl` / `docs/research`）
+- [ ] ルート `README.md` の「RLM実行例」を `rlm_runner` 実装に合わせて追記
+- [ ] GitHub Actions（test/clippy/fmt）を追加
+
+---
 
 ## 未決定事項
 - [x] 振る舞い抽出の一次ベースライン（優先）:
@@ -19,9 +49,9 @@
 - [ ] 論文で使われるテストデータ/評価タスクを特定する
       - 論文の付録/補足資料を確認
       - 公式repo内の `data/`, `eval/`, `datasets/`, `benchmarks/` を確認
-      - [x] arXiv HTML から埋め込み listing をデコードしてローカル化（`docs/rlm/paper-artifact-extraction.md`）
+      - [x] arXiv HTML から埋め込み listing をデコードしてローカル化（`docs/research/paper-artifact-extraction.md`）
       - [x] RLM論文 Appendix E.1 の OOLONG-Pairs task 文を抽出（`extracted/paper/eval_artifacts.json`）
-      - [x] ベンチマーク側（BrowseComp+, OOLONG, LongBench-v2, RULER）の配布先を整理し、取得を進める（`docs/rlm/eval/dataset-sources.md`）
+      - [x] ベンチマーク側（BrowseComp+, OOLONG, LongBench-v2, RULER）の配布先を整理し、取得を進める（`docs/rlm/datasets.md`）
 
 ## REPL振る舞いの抽出
 - [ ] 抽出対象の「REPLプロトコル」を定義する（入力/出力/状態）:
@@ -37,9 +67,9 @@
 
 ## 進捗メモ（抜き出し済み）
 - [x] 公式repoにて、` ```repl ` のコードブロック抽出、`FINAL/FINAL_VAR`、LocalREPLのstdout/stderr/例外フォーマットを確認
-      - 根拠: `docs/rlm/official-implementation-notes.md`
+      - 根拠: `docs/research/official-implementation-notes.md`
 - [x] 論文HTMLから listing と ```repl コードを抽出し、静的解析用のコーパスを作成
-      - 根拠: `docs/rlm/paper-artifact-extraction.md`
+      - 根拠: `docs/research/paper-artifact-extraction.md`
 
 ## 非公式実装（一次ベースライン）を動かす
 - [x] `upstream/recursive-llm` をクローンしてコミットSHAを固定する（`2fb46cc59e64cddc0768ce0bf428138dab3016eb`）
@@ -47,34 +77,34 @@
 - [ ] 「テストデータ」として何を流すか決めてハーネス化する
       - まずは `extracted/paper/repl_blocks/*.py`（論文プロンプト例）から開始
 - [x] 論文コーパス（repl blocks）を非公式REPLに流して、成功/失敗とエラー形状を観測
-      - 根拠: `docs/rlm/unofficial-baseline-run.md`
+      - 根拠: `docs/research/unofficial-baseline-run.md`
       - メモ: `import re` は `__import__ not found` で失敗（`re` はimport無しで使える）
 - [x] 非公式実装のテストを実行して現状を記録（integrationに1件failあり）
-      - 根拠: `docs/rlm/unofficial-test-status.md`
+      - 根拠: `docs/research/unofficial-test-status.md`
 
 ## 評価データ取得（一次目的）
 - [x] BrowseComp-Plus（HF: `Tevatron/browsecomp-plus`, `Tevatron/browsecomp-plus-corpus`）をローカル取得
 - [x] LongBench-v2（HF: `zai-org/LongBench-v2`）をローカル取得
 - [x] OOLONG（小サイズ派生; HF: `tonychenxyz/oolong-synth-1k-16k`, `tonychenxyz/oolong-synth-32k-128k`）をローカル取得
 - [ ] OOLONG（公式; HF: `oolongbench/oolong-synth`, `oolongbench/oolong-real`）の完全取得可否を評価（容量が大きい）
-- [x] RULER から S-NIAH 相当の 50タスクを生成/固定する（seed/設定込み; `extracted/eval/s_niah.jsonl`）
+      - [x] RULER から S-NIAH 相当の 50タスクを生成/固定する（seed/設定込み; `extracted/eval/s_niah.jsonl`）
 
 ## 「使われたREPL」抽出（評価データ駆動）
 - [x] 各評価データから代表サンプル（小）を作り、非公式実装のREPLExecutor上で実行可能な“典型操作”を回すハーネスを作る
       - ハーネス: `tools/repl_probe_runner.py`
       - ログ: `extracted/runs/repl_probes.jsonl`
-      - 結果メモ: `docs/rlm/eval/repl-probe-results.md`
+      - 結果メモ: `docs/research/eval/repl-probe-results.md`
 - [x] 非公式ベースラインを30タスク規模で回し、REPL入力/出力のトランスクリプトを保存する
       - ランナー: `tools/run_unofficial_rlm_logged_eval.py`
       - タスク結果: `extracted/runs/unofficial_tasks30_logged.jsonl`
       - トランスクリプト: `extracted/runs/unofficial_tasks30_transcript.jsonl`
       - 集計: `extracted/runs/unofficial_tasks30_repl_analysis.json`
-      - メモ: `docs/rlm/eval/unofficial-tasks30-repl-log.md`
+      - メモ: `docs/research/eval/unofficial-tasks30-repl-log.md`
 - [x] 実行ログから、必要な構文/型/関数（reの扱い含む）と、非公式実装の癖を整理する（暫定）
-      - `docs/rlm/eval/unofficial-tasks30-required-subset.md`
+      - `docs/research/eval/unofficial-tasks30-required-subset.md`
 - [ ] その結果をもとに、Rustサブセット仕様（allowlist）を文書化する（`docs/plans/`）
       - [x] base64/zlib 注入時に増えるREPL機能の差分を実測（import失敗タスク再実行）
-            - `docs/rlm/eval/unofficial-importfail-rerun-summary.md`
+            - `docs/research/eval/unofficial-importfail-rerun-summary.md`
 
 ## Rustプロジェクト側の仕様とテスト
 - [ ] `docs/plans/` に設計ドキュメントを書く:
@@ -90,6 +120,6 @@
 
 ## 仕様ドラフト（作成済み）
 - [x] 最終観測: REPLで実際に使われた機能一覧（union）
-      - `docs/rlm/eval/final-observed-repl-surface.md`
+      - `docs/repl/final-observed-repl-surface.md`
 - [x] Rustサブセット設計（ドラフト）
       - `docs/plans/2026-01-25-rlm-repl-subset-design.md`

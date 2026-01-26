@@ -35,7 +35,7 @@
 ### 実測（論文コーパスに対する実行）
 - `import re` は失敗（`__import__ not found`）
 - `re` は import 無しで使える（globals に注入されているため）
-  - 根拠: `docs/rlm/unofficial-baseline-run.md`
+  - 根拠: `docs/research/unofficial-baseline-run.md`
 
 ## LLM向けシステムプロンプト（REPLの前提宣言）
 非公式実装は「paper-style minimal prompt」として、環境に `re` が既にあることを明示している:

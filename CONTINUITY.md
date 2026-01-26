@@ -139,11 +139,9 @@ Done:
 	- Began Rust workspace split (crate separation) and added RLM runner design doc: `docs/plans/2026-01-25-rust-rlm-runner-design.md`.
 
 Now:
-- Verify end-to-end replacement:
-  - Run `upstream/recursive-llm` with `RLM_REPL_BACKEND=rust` on a few representative tasks/snippets and confirm behavior parity.
-  - Decide whether to re-run the full 30-task eval with the “observability patches” (base64/zlib injected) to generate a new transcript for full parity replay.
-- Update Japanese docs/specs to include the observed output/state quirks (`No code to execute`, echo-last-expr, error-state carry).
- - Expand pre-injected module set to match unofficial baseline (seed set), then re-run transcript extraction to see which symbols are actually used.
+- Re-organize docs/TODO for an RLM-first repository:
+  - `docs/rlm` (product-facing), `docs/repl` (embedded REPL), `docs/research` (evidence)
+  - Update internal references after moves
 - Implement Rust RLM runner: CLI, transcript JSONL, OpenAI client, dataset loaders.
 
 Next:

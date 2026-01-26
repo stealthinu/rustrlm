@@ -17,5 +17,4 @@
   - `extracted/runs/unofficial_tasks30_transcript.jsonl`
 - トランスクリプトからの集計（AST特徴/頻出スニペット）:
   - `extracted/runs/unofficial_tasks30_repl_analysis.json`
-  - `docs/rlm/eval/unofficial-tasks30-repl-features.md`
-
+  - `docs/research/eval/unofficial-tasks30-repl-features.md`
