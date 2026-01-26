@@ -18,6 +18,7 @@ Rustで実装した **Recursive Language Models (RLM)** ランナーと、RLMが
 - `crates/python_string_repl`: Python REPLサブセット（ライブラリ）
 - `crates/python_string_repl_cli`: REPL CLI（bin名 `python_string_repl`。stdin JSON -> stdout JSON）
 - `crates/rlm_runner`: Rust RLMランナー（OpenAI API固定。開発中）
+- `python/rustrlm_client`: RustRLM Retrieval API のPythonクライアント（薄いHTTPラッパ）
 
 ## Rust: ビルド/テスト
 この環境では `~/.cargo` が書き込み不可のため、ローカルの `CARGO_HOME` を使います:

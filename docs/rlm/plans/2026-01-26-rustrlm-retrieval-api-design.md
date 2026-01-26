@@ -112,13 +112,27 @@
   - `retrieve(query, documents, options) -> results`
   - `health()`
 
+#### Pythonクライアント（標準ライブラリのみ）
+- 依存を増やさずに導入できるよう、`urllib.request` を使う
+- JSONのシリアライズ/デシリアライズは標準 `json` を使用
+- 例外は `RustRLMError` に統一
+
+API案:
+```python
+client = RustRLMClient(base_url="http://127.0.0.1:8080", timeout=30)
+client.health()  # -> dict
+client.retrieve(query, documents, options=None)  # -> dict
+```
+
 ### LangChain
 - `BaseRetriever` 実装
 - `_get_relevant_documents` がHTTP呼び出しを行い、`Document` へ変換
+- 依存が無い場合は ImportError を明示
 
 ### LlamaIndex
 - Retriever 実装 (`retrieve`)
 - `NodeWithScore` へ変換
+- 依存が無い場合は ImportError を明示
 
 ---
 
