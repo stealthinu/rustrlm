@@ -18,6 +18,7 @@ target/
 upstream/
 vendor/python/
 extracted/
+.codex/
 
 # OS / editor
 .DS_Store
