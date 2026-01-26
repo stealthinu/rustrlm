@@ -23,8 +23,14 @@
 
 ## 優先度B: 内包REPLサブセット（互換と安全性）
 - [ ] 実ログ/トランスクリプト由来の不足機能をTDDで追加（必要最小限）
-  - [ ] `str()` / `str.replace()` 等（現在のログで NameError が出たものから）
-  - [ ] 追加が必要なら `re.split` など（観測に基づく）
+  - [ ] NameError系（現ログで頻出）
+    - [ ] `str()`（bytes->str/repr用途）
+    - [ ] `str.replace()` / `str.split()` / `str.splitlines()`（文字列前処理）
+    - [ ] `match.start()`（`re.search` 結果の位置参照。必要なら `end()`/`span()` も）
+  - [ ] ForbiddenSyntax系（現ログで頻出）
+    - [ ] `unsupported compare`（例: `is None` / `is not None` / `in` など、ログから優先して追加）
+    - [ ] `unsupported operator`（例: `-len(...)` や `|` 等。ログから優先して追加）
+    - [ ] `attribute value`（安全に許可する属性の追加。観測ベースでallowlist拡張）
   - [ ] import allowlist（観測ベースでシンボル追加。動的importはしない）
 - [ ] システムテストを「代表REPLサンプル」から10件程度のゴールデンに固定
 

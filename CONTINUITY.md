@@ -137,19 +137,25 @@ Done:
 	- Initialized git history: created first commit on branch `main`; ensured `.cargo-home/` is gitignored.
 	- Published repo to GitHub: `stealthinu/rustrlm` (public), `origin` configured, `main` pushed.
 	- Began Rust workspace split (crate separation) and added RLM runner design doc: `docs/plans/2026-01-25-rust-rlm-runner-design.md`.
+	- Prepared a project-local Codex home at `/home/stealth/restrlm/.codex` by copying relevant `~/.codex` files and rewriting session `cwd` from `/home/stealth/python-string-repl` to `/home/stealth/restrlm` (sandbox prevents edits under `/home/stealth/.codex`).
 
 Now:
 - Re-organize docs/TODO for an RLM-first repository:
   - `docs/rlm` (product-facing), `docs/repl` (embedded REPL), `docs/research` (evidence)
   - Update internal references after moves
+- Add REPL feature gaps observed in transcripts to TODO (NameError/ForbiddenSyntax hot spots).
 - Implement Rust RLM runner: CLI, transcript JSONL, OpenAI client, dataset loaders.
+- Verify `/resume` shows prior sessions when launching Codex with `CODEX_HOME=/home/stealth/restrlm/.codex`.
+- Make `/resume` work without `CODEX_HOME` override (prefer migrating real `~/.codex` data; fallback: auto-set `CODEX_HOME` via shell/direnv).
 
 Next:
+- If needed, run a one-time manual migration in the real home dir (`/home/stealth/.codex`) outside sandbox: back up `~/.codex/sessions` then rewrite `session_meta.payload.cwd` to the new path.
 - (If needed) Add a switch/config to run Rust REPL with/without `base64`/`zlib` injected, to match either baseline transcripts or the “observability” configuration.
 - Expand system tests with a handful of representative transcript-derived snippets and keep them stable as golden tests.
  - Add allowlisted bindings for newly seeded modules/symbols (TDD): start with `json.loads` and the minimal helpers that appear in logs.
 
 Open questions (UNCONFIRMED if needed):
+- Whether the user wants a one-time migration of `~/.codex` (so plain `codex` works everywhere) or prefers per-project `CODEX_HOME` auto-switching (direnv/shell function).
 - Whether downloading the full official OOLONG releases (`oolongbench/*`, tens of GB) is feasible/necessary for this phase.
 - How to pin exact dataset revisions for HF downloads (current local snapshots lack revision metadata; may require re-download).
 - Whether the Rust subset should intentionally diverge from the non-official baseline on comprehension scoping (to match CPython semantics).
@@ -158,16 +164,18 @@ Open questions (UNCONFIRMED if needed):
 - Whether to treat `FINAL("...")` parsing as purely syntactic (current baseline extracts even if embedded in non-executed branches) vs enforce an explicit REPL-side `FINAL` callable for correctness.
 
 Working set (files/ids/commands):
-- /home/stealth/python-string-repl/CONTINUITY.md
+- /home/stealth/restrlm/CONTINUITY.md
 - ls (workspace root)
-- /home/stealth/python-string-repl/TODO.md
-- /home/stealth/python-string-repl/docs/rlm/sources.md
-- /home/stealth/python-string-repl/docs/rlm/repl-extraction-notes.md
-- /home/stealth/python-string-repl/docs/rlm/official-implementation-notes.md
-- /home/stealth/python-string-repl/upstream/rlm
-- /home/stealth/python-string-repl/upstream/paper/rlm-2512.24601v1.html
-- /home/stealth/python-string-repl/extracted/paper/listings
-- /home/stealth/python-string-repl/extracted/paper/repl_blocks
+- /home/stealth/restrlm/TODO.md
+- /home/stealth/restrlm/docs/rlm/sources.md
+- /home/stealth/restrlm/docs/rlm/repl-extraction-notes.md
+- /home/stealth/restrlm/docs/rlm/official-implementation-notes.md
+- /home/stealth/restrlm/upstream/rlm
+- /home/stealth/restrlm/upstream/paper/rlm-2512.24601v1.html
+- /home/stealth/restrlm/extracted/paper/listings
+- /home/stealth/restrlm/extracted/paper/repl_blocks
+- /home/stealth/.codex/sessions (prior sessions stored under old `cwd`)
+- /home/stealth/restrlm/.codex (project-local Codex home with migrated sessions)
 - /home/stealth/python-string-repl/extracted/paper/repl_ast_features.json
 - /home/stealth/python-string-repl/docs/rlm/paper-artifact-extraction.md
 - /home/stealth/python-string-repl/docs/rlm/unofficial-implementation-notes.md
