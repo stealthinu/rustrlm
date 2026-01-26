@@ -10,6 +10,9 @@
 ## 優先度A: RustRLM（RLMランナー本体）
 - [ ] `crates/rlm_runner` を「このリポの主機能」として完成させる
   - [ ] CLI: `run --dataset --task-count --seed --out-jsonl --transcript-jsonl`
+  - [x] Retrieval API 設計（`docs/rlm/plans/2026-01-26-rustrlm-retrieval-api-design.md`）
+  - [x] Retrieval API（HTTP）: `GET /v1/health` / `GET /v1/version` / `POST /v1/retrieve`
+  - [ ] Pythonクライアント + LangChain/LlamaIndexアダプタ
   - [ ] トランスクリプトJSONL（既存解析ツールで読める互換フォーマット）
   - [ ] OpenAI API（固定）: `OPENAI_API_KEY`、root=`gpt-5.2` / recursive=`gpt-5-mini`
   - [ ] ループ: max_depth / max_iterations / timeout / retries

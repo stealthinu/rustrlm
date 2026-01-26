@@ -10,4 +10,4 @@ RustRLM は、Recursive Language Models (RLM) の実験・評価・置換検証�
 ## 主要ドキュメント
 - データセット入手: `docs/rlm/datasets.md`
 - 設計（RLMランナー）: `docs/rlm/plans/2026-01-25-rust-rlm-runner-design.md`
-
+- 設計（Retrieval API）: `docs/rlm/plans/2026-01-26-rustrlm-retrieval-api-design.md`

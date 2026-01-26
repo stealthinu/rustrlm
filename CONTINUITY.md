@@ -3,6 +3,7 @@ Goal (incl. success criteria):
   by extracting expected REPL behavior from paper test data and comparing against official/unofficial implementations.
 - Rewrite the non-official Recursive Language Models (RLM) runner in Rust, separating the REPL engine into a standalone library crate and the RLM orchestration into an independent crate/binary, and validate end-to-end with saved transcripts/evals.
  - Treat this repo as the Rust RLM project (end-to-end runnable), with the Python REPL subset as an internal, embedded library crate (no repo split).
+ - Provide RustRLM as an HTTP JSON “retrieval layer” that can replace Retriever components in LangChain/LlamaIndex (and other agent SDKs) via thin adapters.
 
 Constraints/Assumptions:
 - Follow AGENTS.md instructions for this workspace.
@@ -21,6 +22,8 @@ Key decisions:
 - Import allowlist expansion strategy: (1) seed with the same “safe stdlib” modules the unofficial Python backend pre-injects, and (2) iteratively add only the specific symbols observed in transcripts/evals.
 - RLM rewrite LLM client: OpenAI API fixed; read `OPENAI_API_KEY` from `.env`; use `gpt-5.2` (root) + `gpt-5-mini` (recursive).
 - Repo strategy: keep a single monorepo/workspace; do not split into separate GitHub repos for REPL vs RLM.
+- Product direction: position RustRLM as a “retrieval layer” alternative to RAG (broad sense). First integration target is retriever replacement in LangChain/LlamaIndex.
+- Retrieval integration: expose a stable HTTP JSON Retrieval API + a small Python client; framework-specific adapters are thin type/shape conversions.
 
 State:
 - Upstream repos and benchmark datasets are cloned/downloaded locally; paper artifacts extracted into a runnable corpus.
@@ -145,6 +148,7 @@ Now:
   - Update internal references after moves
 - Add REPL feature gaps observed in transcripts to TODO (NameError/ForbiddenSyntax hot spots).
 - Implement Rust RLM runner: CLI, transcript JSONL, OpenAI client, dataset loaders.
+- Write a detailed Retrieval API spec (HTTP endpoints, schemas, trace/logging, limits, error model) before implementation.
 - Verify `/resume` shows prior sessions when launching Codex with `CODEX_HOME=/home/stealth/restrlm/.codex`.
 - Make `/resume` work without `CODEX_HOME` override (prefer migrating real `~/.codex` data; fallback: auto-set `CODEX_HOME` via shell/direnv).
 
