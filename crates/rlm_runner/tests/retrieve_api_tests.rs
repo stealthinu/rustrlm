@@ -13,7 +13,9 @@ async fn health_endpoint_ok() {
 
 #[tokio::test]
 async fn retrieve_basic_ranks_relevant_doc() {
-    let (addr, _handle) = rlm_runner::server::spawn_test_server().await;
+    let resp = r#"FINAL("""{"results":[{"doc_id":"doc2","score":0.8,"snippet":"brown fox"}],"warnings":[]}""")"#;
+    let (addr, _handle) =
+        rlm_runner::server::spawn_test_server_with_mock(vec![resp.to_string()]).await;
     let url = format!("http://{}/v1/retrieve", addr);
     let req = json!({
         "query": "brown fox",
@@ -37,7 +39,9 @@ async fn retrieve_basic_ranks_relevant_doc() {
 
 #[tokio::test]
 async fn retrieve_respects_max_chunk_chars() {
-    let (addr, _handle) = rlm_runner::server::spawn_test_server().await;
+    let resp = r#"FINAL("""{"results":[{"doc_id":"doc1","score":0.9,"snippet":"target"}],"warnings":[]}""")"#;
+    let (addr, _handle) =
+        rlm_runner::server::spawn_test_server_with_mock(vec![resp.to_string()]).await;
     let url = format!("http://{}/v1/retrieve", addr);
     let long_text = "x".repeat(2000) + " target " + &"y".repeat(2000);
     let req = json!({

@@ -3,17 +3,20 @@
 ## 目的（成功条件）
 - RustRLM を **“Retriever 置き換え”** として提供できるようにする。
 - LangChain / LlamaIndex / 他SDK から **HTTP JSON** 経由で接続できる。
+- **LLM+REPL 方式の retrieve** を提供し、非公式RLM実装の挙動に寄せる。
 - まずは **inline documents 型**（リクエストで文書群を一緒に渡す）で最小実装。
 
 ## 非目標
 - 永続インデックス（vector DB の代替）や大規模DB管理はしない。
 - 学習/重み更新はしない。
 - REPL側にネットワーク機能を追加しない（RustRLM本体がHTTPを担当）。
+- 決定論リトリーバの維持（必要なら将来別エンドポイント）。
 
 ## 位置づけ
 - RustRLMは「関連情報を探して取ってくる」レイヤーを担う。
 - LangChain/LlamaIndexでは **Retriever** を差し替える形で利用する。
 - 返り値は **passages（本文＋メタデータ＋スコア＋根拠位置）** を返す。
+- スコアは **LLM自己評価（0.0〜1.0）** を採用する。
 
 ---
 
@@ -89,7 +92,7 @@
 ---
 
 ## 決定性と安全性
-- 同一入力は同一出力（決定性）
+- 同一入力でも **LLMにより揺らぎが発生** する（非決定的）
 - REPLはネットワーク/IO禁止のまま。HTTPはRustRLM本体のみが担当
 - 文書は「リクエスト内のみ」。永続保存はしない
 
@@ -137,6 +140,6 @@ client.retrieve(query, documents, options=None)  # -> dict
 ---
 
 ## 実装フェーズ
-1. **HTTPサーバ + retrieve** を最小で実装（本設計）
+1. **HTTPサーバ + LLM+REPL retrieve** を最小で実装（本設計）
 2. **Python薄いクライアント** + LangChain/LlamaIndexアダプタ
-3. RLMによる高度な再帰的検索へ拡張（別設計）
+3. 追加機能（別エンドポイント、キャッシュなど）は必要になってから検討

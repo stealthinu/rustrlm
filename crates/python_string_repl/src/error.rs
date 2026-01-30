@@ -29,3 +29,9 @@ pub enum ReplError {
     #[error("SystemExit")]
     SystemExit,
 }
+
+impl ReplError {
+    pub fn subset_hint() -> &'static str {
+        "Note: this REPL is a restricted Python subset; some constructs are unsupported by design (e.g., while, complex comprehensions, type(), with, class, lambda, reflection builtins)."
+    }
+}

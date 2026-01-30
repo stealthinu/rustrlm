@@ -1,12 +1,12 @@
 # RustRLM インプロセス Retrieval 設計（関数型）
 
 ## 概要
-RustRLM の Retrieval 層を **サーバ不要で使えるインプロセス関数**として提供する。HTTP API は同一のコア関数を呼ぶ薄いラッパにし、LangChain/LlamaIndex 互換の薄いアダプタを維持する。Python 側は関数型 API のみを提供（クラス型クライアントは持たない）。
+RustRLM の Retrieval 層を **サーバ不要で使えるインプロセス関数**として提供する。HTTP API は同一のコア関数を呼ぶ薄いラッパにし、LangChain/LlamaIndex 互換の薄いアダプタを維持する。Retrieval の中身は **LLM+REPL 方式**（RLMループ）で行い、Python 側は関数型 API のみを提供（クラス型クライアントは持たない）。
 
 ## 目的
 - LangChain/LlamaIndex の Retriever を置き換え可能な Retrieval 層を提供する
 - HTTP/インプロセスで **同一ロジック**を共有する
-- 低依存・決定的・安全な Retrieval を実現する
+- 非公式RLM実装に近い **LLM+REPL Retrieval** を実現する
 
 ## 非目標
 - ベクトル検索や外部 DB 連携
@@ -43,13 +43,13 @@ fn retrieve(query: &str, docs: &[DocumentInput], opts: RetrieveOptions) -> Resul
 - `Hit { id: String, text: String, metadata: Value, score: f64, spans: Option<Vec<Span>> }`
 
 ## スコアリング
-- 既存の簡易スコア（query の token との重なり）を継続
+- LLMが **0.0〜1.0** で自己評価したスコアを採用
 - `min_score` を満たすもののみ返却
 - `top_k` で切り詰め
 
 ## エラーと決定性
 - 入力型不一致・必須フィールド欠落は明示エラー
-- Retrieval 自体は純粋関数的に動作し、外部 I/O を使わない
+- LLM利用のため **非決定的**（同一入力でも揺らぐ可能性）
 
 ## LangChain / LlamaIndex 互換
 - **LangChain**: `Document(page_content=text, metadata={... , "score": score})`
@@ -57,7 +57,7 @@ fn retrieve(query: &str, docs: &[DocumentInput], opts: RetrieveOptions) -> Resul
 - `QueryBundle` は `query_str` を抽出して利用
 
 ## HTTP API との関係
-- HTTP API は **コア関数に委譲**するだけの薄い層
+- HTTP API は **LLM+REPL コア関数に委譲**するだけの薄い層
 - ロジック二重化はしない
 
 ## テスト方針（TDD）

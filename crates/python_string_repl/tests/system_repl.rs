@@ -238,6 +238,114 @@ print(out)
 }
 
 #[test]
+fn sys_list_comprehension_basic_and_if_filter() {
+    let code = r#"
+xs = [1, 2, 3, 4]
+ys = [x for x in xs if x != 2]
+print(len(ys), ys[0], ys[1], ys[2])
+"#;
+    let (ok, out, err) = run(code, "", "");
+    assert!(ok, "err={err:?}");
+    assert_eq!(out, "3 1 3 4");
+}
+
+#[test]
+fn sys_type_is_not_available_and_error_mentions_subset() {
+    let code = r#"
+print(type(query))
+"#;
+    let (ok, _out, err) = run(code, "", "hello");
+    assert!(!ok);
+    let msg = err.unwrap_or_default();
+    assert!(msg.contains("name error: type"), "unexpected err: {msg}");
+    assert!(
+        msg.to_lowercase().contains("restricted python subset"),
+        "missing subset hint: {msg}"
+    );
+}
+
+#[test]
+fn sys_dict_int_indexing_is_supported_for_llm_robustness() {
+    // Dict literals are not supported in this subset, so use json.loads.
+    let code = r#"
+d = json.loads('{"a": 1, "b": 2}')
+print(d[0], d[1])
+"#;
+    let (ok, out, err) = run(code, "", "");
+    assert!(ok, "err={err:?}");
+    assert_eq!(out, "1 2");
+}
+
+#[test]
+fn sys_in_compare_and_boolop() {
+    let code = r#"
+t = context.lower()
+print(("alien" in t) and ("truth" in t))
+print(("missing" in t) or ("alien" in t))
+"#;
+    let (ok, out, err) = run(code, "Alien Truth", "");
+    assert!(ok, "err={err:?}");
+    assert_eq!(out, "True\nTrue");
+}
+
+#[test]
+fn sys_range_basic() {
+    let code = r#"
+xs = range(3)
+print(len(xs), xs[0], xs[1], xs[2])
+"#;
+    let (ok, out, err) = run(code, "", "");
+    assert!(ok, "err={err:?}");
+    assert_eq!(out, "3 0 1 2");
+}
+
+#[test]
+fn sys_dict_literal_with_str_keys() {
+    let code = r#"
+d = {"a": 1, "b": 2}
+print(d["a"], d[0])
+"#;
+    let (ok, out, err) = run(code, "", "");
+    assert!(ok, "err={err:?}");
+    assert_eq!(out, "1 1");
+}
+
+#[test]
+fn sys_list_append_and_dict_get_and_str_replace_split_startswith_and_json_dumps() {
+    let code = r#"
+xs = []
+xs.append("a")
+xs.append("b")
+print(len(xs), xs[0], xs[1])
+
+d = {"x": 1}
+print(d.get("x"), d.get("y", 9))
+
+s = "hello world"
+print(s.replace("world", "you"))
+print(s.split()[0])
+print(s.startswith("he"))
+
+print(json.dumps({"a": 1}))
+"#;
+    let (ok, out, err) = run(code, "", "");
+    assert!(ok, "err={err:?}");
+    assert_eq!(out, "2 a b\n1 9\nhello you\nhello\nTrue\n{\"a\":1}");
+}
+
+#[test]
+fn sys_rank_documents_helper() {
+    let code = r#"
+docs = json.loads('[{"id":"d1","text":"alpha beta","metadata":null},{"id":"d2","text":"the quick brown fox","metadata":null}]')
+hits = rank_documents(docs, query, 2)
+print(len(hits), hits[0]["doc_id"])
+"#;
+    let (ok, out, err) = run(code, "", "brown fox");
+    assert!(ok, "err={err:?}");
+    assert_eq!(out, "1 d2");
+}
+
+#[test]
 fn sys_zlib_output_limit_is_enforced() {
     // Decompressing this should exceed the default cap (1_000_000) if not enforced.
     // We'll use a smaller cap via request max_output_chars only affects stdout, so we rely on engine default cap.

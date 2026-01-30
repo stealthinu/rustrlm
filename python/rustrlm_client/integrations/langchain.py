@@ -3,6 +3,7 @@ from typing import Any, Dict, List, Optional
 try:
     from langchain_core.documents import Document
     from langchain_core.retrievers import BaseRetriever
+    from pydantic import ConfigDict
 except Exception as e:  # pragma: no cover - optional dependency
     raise ImportError(
         "LangChain is not installed. Install langchain-core to use this adapter."
@@ -14,11 +15,10 @@ from rustrlm_client import RustRLMClient
 class RustRLMRetriever(BaseRetriever):
     client: RustRLMClient
     options: Optional[Dict[str, Any]] = None
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def __init__(self, client: RustRLMClient, options: Optional[Dict[str, Any]] = None):
-        super().__init__()
-        self.client = client
-        self.options = options
+        super().__init__(client=client, options=options)
 
     def _get_relevant_documents(self, query: str) -> List[Document]:
         # Expect caller to pass inline documents in options

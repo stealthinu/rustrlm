@@ -11,12 +11,13 @@
 - [ ] `crates/rlm_runner` を「このリポの主機能」として完成させる
   - [ ] CLI: `run --dataset --task-count --seed --out-jsonl --transcript-jsonl`
   - [x] Retrieval API 設計（`docs/rlm/plans/2026-01-26-rustrlm-retrieval-api-design.md`）
-  - [x] Retrieval API（HTTP）: `GET /v1/health` / `GET /v1/version` / `POST /v1/retrieve`
+  - [ ] Retrieval API（HTTP）を **LLM+REPL方式** に置き換える
   - [x] Pythonクライアント + LangChain/LlamaIndexアダプタ（HTTP JSON）
   - [ ] トランスクリプトJSONL（既存解析ツールで読める互換フォーマット）
   - [ ] OpenAI API（固定）: `OPENAI_API_KEY`、root=`gpt-5.2` / recursive=`gpt-5-mini`
   - [ ] ループ: max_depth / max_iterations / timeout / retries
   - [ ] REPL呼び出し: 内包ライブラリ `crates/python_string_repl` を直接呼ぶ（subprocess無し）
+  - [ ] `retrieve` 返却スコアは **LLM自己評価(0.0〜1.0)** を採用
 - [ ] データセットローダ（ローカルキャッシュ参照）
   - [ ] BrowseComp+（Parquet）
   - [ ] LongBench-v2 Code repo QA（JSON）
@@ -41,6 +42,7 @@
 - [x] docsを目的別に整理（`docs/rlm` / `docs/repl` / `docs/research`）
 - [ ] ルート `README.md` の「RLM実行例」を `rlm_runner` 実装に合わせて追記
 - [ ] GitHub Actions（test/clippy/fmt）を追加
+ - [ ] `retrieve` を LLM+REPL として再定義した旨を docs 全体に反映
 
 ---
 

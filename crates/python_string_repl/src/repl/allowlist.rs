@@ -37,6 +37,15 @@ fn validate_stmt(stmt: &ast::Stmt) -> Result<(), ReplError> {
             validate_expr(&s.value)?;
             Ok(())
         }
+        AugAssign(s) => {
+            // Allow `x += expr` and similar on simple names only.
+            match s.target.as_ref() {
+                ast::Expr::Name(n) => validate_name(n.id.as_str())?,
+                _ => return Err(ReplError::ForbiddenSyntax("augassign target".into())),
+            }
+            validate_expr(&s.value)?;
+            Ok(())
+        }
         Expr(s) => validate_expr(&s.value),
         If(s) => {
             validate_expr(&s.test)?;
@@ -52,8 +61,24 @@ fn validate_stmt(stmt: &ast::Stmt) -> Result<(), ReplError> {
         For(s) => {
             match s.target.as_ref() {
                 ast::Expr::Name(n) => validate_name(n.id.as_str())?,
+                ast::Expr::Tuple(t) => {
+                    for el in &t.elts {
+                        match el {
+                            ast::Expr::Name(n) => validate_name(n.id.as_str())?,
+                            _ => return Err(ReplError::ForbiddenSyntax("for target".into())),
+                        }
+                    }
+                }
+                ast::Expr::List(t) => {
+                    for el in &t.elts {
+                        match el {
+                            ast::Expr::Name(n) => validate_name(n.id.as_str())?,
+                            _ => return Err(ReplError::ForbiddenSyntax("for target".into())),
+                        }
+                    }
+                }
                 _ => return Err(ReplError::ForbiddenSyntax("for target".into())),
-            }
+            };
             validate_expr(&s.iter)?;
             for st in &s.body {
                 validate_stmt(st)?;
@@ -187,6 +212,12 @@ fn validate_expr(expr: &ast::Expr) -> Result<(), ReplError> {
             }
             Ok(())
         }
+        BoolOp(e) => {
+            for v in &e.values {
+                validate_expr(v)?;
+            }
+            Ok(())
+        }
         Call(e) => {
             validate_expr(&e.func)?;
             for a in &e.args {
@@ -228,9 +259,49 @@ fn validate_expr(expr: &ast::Expr) -> Result<(), ReplError> {
             }
             Ok(())
         }
+        Dict(e) => {
+            // Allow dict literals with string keys only.
+            for k in &e.keys {
+                match k {
+                    Some(ast::Expr::Constant(c)) => {
+                        // Only allow string keys
+                        match &c.value {
+                            ast::Constant::Str(_) => {}
+                            _ => return Err(ReplError::ForbiddenSyntax("dict key must be str literal".into())),
+                        }
+                    }
+                    None => return Err(ReplError::ForbiddenSyntax("dict unpack".into())),
+                    _ => return Err(ReplError::ForbiddenSyntax("dict key must be str literal".into())),
+                }
+            }
+            for v in &e.values {
+                validate_expr(v)?;
+            }
+            Ok(())
+        }
         Tuple(e) => {
             for v in &e.elts {
                 validate_expr(v)?;
+            }
+            Ok(())
+        }
+        ListComp(e) => {
+            // Restrict to a single generator: [elt for name in iterable if cond]
+            if e.generators.len() != 1 {
+                return Err(ReplError::ForbiddenSyntax("listcomp generators".into()));
+            }
+            validate_expr(&e.elt)?;
+            let gen = &e.generators[0];
+            match &gen.target {
+                ast::Expr::Name(n) => validate_name(n.id.as_str())?,
+                _ => return Err(ReplError::ForbiddenSyntax("listcomp target".into())),
+            }
+            validate_expr(&gen.iter)?;
+            for if_expr in &gen.ifs {
+                validate_expr(if_expr)?;
+            }
+            if gen.is_async {
+                return Err(ReplError::ForbiddenSyntax("async listcomp".into()));
             }
             Ok(())
         }

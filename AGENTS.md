@@ -29,11 +29,15 @@
 - Follow `rustfmt` and `clippy` guidance; no unused imports or warnings.
 - Naming: snake_case for functions/vars, CamelCase for types/traits, SCREAMING_SNAKE for consts.
 - Prefer small modules, explicit types at public boundaries, and clear error enums.
+### Communication
+- Batch questions instead of asking them one-by-one.
+- After the user answers the batch, proceed without additional confirmation unless a new blocker appears.
 
 ## Testing
 - Add/adjust tests for every behavior change.
 - Keep tests readable and close to the logic they cover when possible.
 - If behavior is ambiguous, add a failing test and clarify before implementation.
+- When adding or modifying runnable samples/examples, execute them and confirm they work before reporting completion.
 
 ## Security notes
 - Treat all input as untrusted.

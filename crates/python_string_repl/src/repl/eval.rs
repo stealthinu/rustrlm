@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use crate::error::ReplError;
+use base64::Engine;
 
 use super::builtins::PrintSink;
 use super::parse::Program;
@@ -177,6 +178,37 @@ fn exec_stmt(
             }
             Ok(Flow::Continue)
         }
+        AugAssign(s) => {
+            use rustpython_parser::ast::Operator;
+            let target = match s.target.as_ref() {
+                rustpython_parser::ast::Expr::Name(n) => n.id.to_string(),
+                _ => return Err(ReplError::ForbiddenSyntax("augassign target".into())),
+            };
+            let left = env
+                .get(&target)
+                .ok_or_else(|| ReplError::NameError(target.clone()))?;
+            let right = eval_expr(&s.value, env, sink)?;
+            let out = match s.op {
+                Operator::Add => match (left, right) {
+                    (Value::Str(a), Value::Str(b)) => Value::Str(a + &b),
+                    (Value::Bytes(mut a), Value::Bytes(b)) => {
+                        a.extend_from_slice(&b);
+                        Value::Bytes(a)
+                    }
+                    (Value::Int(a), Value::Int(b)) => Value::Int(a + b),
+                    (a, b) => {
+                        return Err(ReplError::TypeError(format!(
+                            "unsupported +=: {} and {}",
+                            a.type_name(),
+                            b.type_name()
+                        )))
+                    }
+                },
+                _ => return Err(ReplError::ForbiddenSyntax("unsupported augassign op".into())),
+            };
+            env.set(&target, out);
+            Ok(Flow::Continue)
+        }
         Expr(s) => {
             // Expressions do not print by default. (print() is explicit).
             let _ = eval_expr(&s.value, env, sink)?;
@@ -193,13 +225,9 @@ fn exec_stmt(
         Pass(_) => Ok(Flow::Continue),
         For(s) => {
             let iter_v = eval_expr(&s.iter, env, sink)?;
-            let target_name = match s.target.as_ref() {
-                rustpython_parser::ast::Expr::Name(n) => n.id.to_string(),
-                _ => return Err(ReplError::ForbiddenSyntax("for target".into())),
-            };
             let items = iter_to_vec(iter_v)?;
             for it in items {
-                env.set(&target_name, it);
+                bind_for_target(s.target.as_ref(), it, env)?;
                 match exec_suite(&s.body, env, sink)? {
                     Flow::Continue => {}
                     Flow::Return(v) => return Ok(Flow::Return(v)),
@@ -311,6 +339,46 @@ fn exec_stmt(
     }
 }
 
+fn bind_for_target(
+    target: &rustpython_parser::ast::Expr,
+    it: Value,
+    env: &mut Env,
+) -> Result<(), ReplError> {
+    match target {
+        rustpython_parser::ast::Expr::Name(n) => {
+            env.set(n.id.as_str(), it);
+            Ok(())
+        }
+        rustpython_parser::ast::Expr::Tuple(t) => {
+            bind_unpack_elts(&t.elts, it, env)
+        }
+        rustpython_parser::ast::Expr::List(t) => {
+            bind_unpack_elts(&t.elts, it, env)
+        }
+        _ => Err(ReplError::ForbiddenSyntax("for target".into())),
+    }
+}
+
+fn bind_unpack_elts(
+    elts: &[rustpython_parser::ast::Expr],
+    it: Value,
+    env: &mut Env,
+) -> Result<(), ReplError> {
+    let Value::List(xs) = it else {
+        return Err(ReplError::TypeError("for target expects iterable of lists".into()));
+    };
+    if xs.len() != elts.len() {
+        return Err(ReplError::ValueError("unpack mismatch".into()));
+    }
+    for (el, v) in elts.iter().zip(xs.into_iter()) {
+        match el {
+            rustpython_parser::ast::Expr::Name(n) => env.set(n.id.as_str(), v),
+            _ => return Err(ReplError::ForbiddenSyntax("for target".into())),
+        }
+    }
+    Ok(())
+}
+
 fn importable_module_attr_value(module: &str, attr: &str) -> Option<Value> {
     use super::value::Callable;
     match (module, attr) {
@@ -350,6 +418,7 @@ fn iter_to_vec(v: Value) -> Result<Vec<Value>, ReplError> {
         Value::Str(s) => Ok(s.chars().map(|c| Value::Str(c.to_string())).collect()),
         Value::Bytes(b) => Ok(b.into_iter().map(|x| Value::Int(x as i64)).collect()),
         Value::List(xs) => Ok(xs),
+        Value::Dict(m) => Ok(m.keys().cloned().map(Value::Str).collect()),
         _ => Err(ReplError::TypeError(format!(
             "object is not iterable: {}",
             v.type_name()
@@ -379,6 +448,7 @@ fn eval_expr(
             }
         }
         Compare(e) => eval_compare(e, env, sink),
+        BoolOp(e) => eval_boolop(e, env, sink),
         Call(e) => eval_call(e, env, sink),
         Attribute(e) => eval_attribute(e, env, sink),
         Subscript(e) => eval_subscript(e, env, sink),
@@ -390,6 +460,33 @@ fn eval_expr(
             }
             Ok(Value::List(out))
         }
+        Dict(e) => {
+            // Dict literals are restricted to string keys by the allowlist.
+            let mut out = std::collections::BTreeMap::new();
+            for (k, v) in e.keys.iter().zip(e.values.iter()) {
+                let key_expr = k
+                    .as_ref()
+                    .ok_or_else(|| ReplError::ForbiddenSyntax("dict unpack".into()))?;
+                let key = match key_expr {
+                    rustpython_parser::ast::Expr::Constant(c) => match &c.value {
+                        rustpython_parser::ast::Constant::Str(s) => s.clone(),
+                        _ => {
+                            return Err(ReplError::ForbiddenSyntax(
+                                "dict key must be str literal".into(),
+                            ))
+                        }
+                    },
+                    _ => {
+                        return Err(ReplError::ForbiddenSyntax(
+                            "dict key must be str literal".into(),
+                        ))
+                    }
+                };
+                let vv = eval_expr(v, env, sink)?;
+                out.insert(key, vv);
+            }
+            Ok(Value::Dict(out))
+        }
         Tuple(e) => {
             // treat tuple as list for now (only used for internal purposes, rarely observed)
             let mut out = Vec::new();
@@ -398,8 +495,79 @@ fn eval_expr(
             }
             Ok(Value::List(out))
         }
+        ListComp(e) => eval_listcomp(e, env, sink),
         _ => Err(ReplError::ForbiddenSyntax(format!("{:?}", expr))),
     }
+}
+
+fn eval_boolop(
+    e: &rustpython_parser::ast::ExprBoolOp,
+    env: &mut Env,
+    sink: &mut PrintSink,
+) -> Result<Value, ReplError> {
+    use rustpython_parser::ast::BoolOp;
+    match e.op {
+        BoolOp::And => {
+            for v in &e.values {
+                let vv = eval_expr(v, env, sink)?;
+                if !vv.to_bool() {
+                    return Ok(Value::Bool(false));
+                }
+            }
+            Ok(Value::Bool(true))
+        }
+        BoolOp::Or => {
+            for v in &e.values {
+                let vv = eval_expr(v, env, sink)?;
+                if vv.to_bool() {
+                    return Ok(Value::Bool(true));
+                }
+            }
+            Ok(Value::Bool(false))
+        }
+    }
+}
+
+fn eval_listcomp(
+    e: &rustpython_parser::ast::ExprListComp,
+    env: &mut Env,
+    sink: &mut PrintSink,
+) -> Result<Value, ReplError> {
+    // Restrict to a single generator: [elt for name in iterable if cond]
+    if e.generators.len() != 1 {
+        return Err(ReplError::ForbiddenSyntax("listcomp generators".into()));
+    }
+    let gen = &e.generators[0];
+    if gen.is_async {
+        return Err(ReplError::ForbiddenSyntax("async listcomp".into()));
+    }
+    let target_name = match &gen.target {
+        rustpython_parser::ast::Expr::Name(n) => n.id.to_string(),
+        _ => return Err(ReplError::ForbiddenSyntax("listcomp target".into())),
+    };
+    let iter_v = eval_expr(&gen.iter, env, sink)?;
+    let items = iter_to_vec(iter_v)?;
+
+    env.push_locals();
+    let mut out = Vec::new();
+    for it in items {
+        env.set(&target_name, it);
+        let mut ok = true;
+        for if_expr in &gen.ifs {
+            let v = eval_expr(if_expr, env, sink)?;
+            if !v.to_bool() {
+                ok = false;
+                break;
+            }
+        }
+        if !ok {
+            continue;
+        }
+        out.push(eval_expr(&e.elt, env, sink)?);
+    }
+    env.pop_locals();
+
+    Ok(Value::List(out))
 }
 
 fn constant_to_value(c: &rustpython_parser::ast::Constant) -> Result<Value, ReplError> {
@@ -505,6 +673,14 @@ fn eval_compare(
             CmpOp::NotEq => left != right,
             CmpOp::Is => is_same(&left, &right),
             CmpOp::IsNot => !is_same(&left, &right),
+            CmpOp::In => is_in(&left, &right),
+            CmpOp::NotIn => !is_in(&left, &right),
+            CmpOp::Lt => cmp_int(&left, &right, |a, b| a < b)?,
+            CmpOp::LtE => cmp_int(&left, &right, |a, b| a <= b)?,
+            CmpOp::Gt => cmp_int(&left, &right, |a, b| a > b)?,
+            CmpOp::GtE => cmp_int(&left, &right, |a, b| a >= b)?,
+            // Keep this as a forward-compat fallback; should be unreachable for current CmpOp set.
+            #[allow(unreachable_patterns)]
             _ => return Err(ReplError::ForbiddenSyntax("unsupported compare".into())),
         };
         if !ok {
@@ -513,6 +689,25 @@ fn eval_compare(
         left = right;
     }
     Ok(Value::Bool(true))
+}
+
+fn cmp_int<F>(a: &Value, b: &Value, f: F) -> Result<bool, ReplError>
+where
+    F: FnOnce(i64, i64) -> bool,
+{
+    match (a, b) {
+        (Value::Int(x), Value::Int(y)) => Ok(f(*x, *y)),
+        _ => Err(ReplError::TypeError("comparison expects int".into())),
+    }
+}
+
+fn is_in(needle: &Value, haystack: &Value) -> bool {
+    match (needle, haystack) {
+        (Value::Str(n), Value::Str(h)) => h.contains(n),
+        (Value::Str(n), Value::List(xs)) => xs.iter().any(|v| matches!(v, Value::Str(s) if s == n)),
+        (Value::Int(i), Value::List(xs)) => xs.iter().any(|v| matches!(v, Value::Int(j) if j == i)),
+        _ => false,
+    }
 }
 
 fn is_same(a: &Value, b: &Value) -> bool {
@@ -531,6 +726,33 @@ fn eval_call(
     env: &mut Env,
     sink: &mut PrintSink,
 ) -> Result<Value, ReplError> {
+    // Special-case in-place list append: xs.append(v)
+    if let rustpython_parser::ast::Expr::Attribute(a) = e.func.as_ref() {
+        if a.attr.as_str() == "append" {
+            if let rustpython_parser::ast::Expr::Name(n) = a.value.as_ref() {
+                if e.args.len() != 1 || !e.keywords.is_empty() {
+                    return Err(ReplError::TypeError("append(x)".into()));
+                }
+                let item = eval_expr(&e.args[0], env, sink)?;
+                let cur = env
+                    .get(n.id.as_str())
+                    .ok_or_else(|| ReplError::NameError(n.id.to_string()))?;
+                let mut xs = match cur {
+                    Value::List(v) => v,
+                    other => {
+                        return Err(ReplError::TypeError(format!(
+                            "append() target must be list, got {}",
+                            other.type_name()
+                        )))
+                    }
+                };
+                xs.push(item);
+                env.set(n.id.as_str(), Value::List(xs));
+                return Ok(Value::None);
+            }
+        }
+    }
+
     // Evaluate args first
     let mut args_v = Vec::new();
     for a in &e.args {
@@ -603,6 +825,104 @@ fn call_name(
                 _ => Err(ReplError::TypeError("max() only supports int".into())),
             }
         }
+        "rank_documents" => {
+            // Prefer signature: rank_documents(query: str, documents: list, top_k: int=5, min_score: ignored)
+            // For robustness, also accept swapped first args: (documents, query, top_k).
+            let mut top_k: Option<i64> = None;
+            for (k, v) in &kwargs {
+                match k.as_str() {
+                    "top_k" => match v {
+                        Value::Int(i) => top_k = Some(*i),
+                        other => {
+                            return Err(ReplError::TypeError(format!(
+                                "rank_documents() top_k must be int, got {}",
+                                other.type_name()
+                            )))
+                        }
+                    },
+                    // accepted but ignored (we avoid floats in this subset)
+                    "min_score" => {}
+                    _ => return Err(ReplError::ForbiddenSyntax("keyword args".into())),
+                }
+            }
+
+            if args.len() < 2 || args.len() > 4 {
+                return Err(ReplError::TypeError(
+                    "rank_documents() takes 2-4 positional arguments".into(),
+                ));
+            }
+
+            let (docs, query) = match (&args[0], &args[1]) {
+                (Value::Str(q), Value::List(xs)) => (xs.clone(), q.clone()),
+                (Value::List(xs), Value::Str(q)) => (xs.clone(), q.clone()),
+                (a, b) => {
+                    return Err(ReplError::TypeError(format!(
+                        "rank_documents() expects (str, list, ...), got ({}, {})",
+                        a.type_name(),
+                        b.type_name()
+                    )))
+                }
+            };
+
+            if let Some(v) = args.get(2) {
+                match v {
+                    Value::Int(i) => top_k = Some(*i),
+                    other => {
+                        return Err(ReplError::TypeError(format!(
+                            "rank_documents() expects int for top_k, got {}",
+                            other.type_name()
+                        )))
+                    }
+                }
+            }
+            let top_k = top_k.unwrap_or(5);
+
+            let out = rank_documents_impl(&docs, &query, top_k)?;
+            Ok(Value::List(out))
+        }
+        "range" => {
+            if !kwargs.is_empty() {
+                return Err(ReplError::ForbiddenSyntax("keyword args".into()));
+            }
+            if args.is_empty() || args.len() > 3 {
+                return Err(ReplError::TypeError("range() takes 1 to 3 arguments".into()));
+            }
+            let mut ints = Vec::new();
+            for a in &args {
+                match a {
+                    Value::Int(i) => ints.push(*i),
+                    other => {
+                        return Err(ReplError::TypeError(format!(
+                            "range() expects int, got {}",
+                            other.type_name()
+                        )))
+                    }
+                }
+            }
+            let (start, stop, step) = match ints.as_slice() {
+                [stop] => (0i64, *stop, 1i64),
+                [start, stop] => (*start, *stop, 1i64),
+                [start, stop, step] => (*start, *stop, *step),
+                _ => unreachable!(),
+            };
+            if step == 0 {
+                return Err(ReplError::ValueError("range() step must not be 0".into()));
+            }
+            // Hard cap to keep resource bounded.
+            const MAX_RANGE_LEN: usize = 5000;
+            let mut out = Vec::new();
+            let mut v = start;
+            while (step > 0 && v < stop) || (step < 0 && v > stop) {
+                out.push(Value::Int(v));
+                if out.len() >= MAX_RANGE_LEN {
+                    return Err(ReplError::ResourceLimitExceeded(
+                        "range() exceeds max length".into(),
+                    ));
+                }
+                v += step;
+            }
+            Ok(Value::List(out))
+        }
         other => match env.get(other) {
             Some(Value::UserFunc(f)) => {
                 if !kwargs.is_empty() {
@@ -610,10 +930,86 @@ fn call_name(
                 }
                 call_user_func(f, args, env, sink)
             }
-            Some(Value::Callable(c)) => call_callable(c, args, kwargs, env),
+            Some(Value::Callable(c)) => call_callable(c, args, kwargs, env, sink),
             _ => Err(ReplError::NameError(other.to_string())),
         },
     }
+}
+
+fn rank_documents_impl(
+    docs: &[Value],
+    query: &str,
+    top_k: i64,
+) -> Result<Vec<Value>, ReplError> {
+    let top_k = top_k.clamp(0, 20) as usize;
+    let terms: Vec<String> = query
+        .to_lowercase()
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|s| s.len() >= 2)
+        .map(|s| s.to_string())
+        .collect();
+
+    let mut scored: Vec<(i64, String, String)> = Vec::new(); // (score, doc_id, snippet)
+    for d in docs {
+        let Value::Dict(map) = d else {
+            continue;
+        };
+        let Some(Value::Str(doc_id)) = map.get("id").cloned() else {
+            continue;
+        };
+        let Some(Value::Str(text)) = map.get("text").cloned() else {
+            continue;
+        };
+        let hay = text.to_lowercase();
+        let mut s = 0i64;
+        let mut best_snippet: Option<String> = None;
+        for t in &terms {
+            if let Some(i) = hay.find(t) {
+                s += 1;
+                if best_snippet.is_none() {
+                    best_snippet = Some(extract_window(&text, i, t.len(), 80));
+                }
+            }
+        }
+        if s <= 0 {
+            continue;
+        }
+        let snippet = best_snippet.unwrap_or_else(|| extract_window(&text, 0, 0, 80));
+        scored.push((s, doc_id, snippet));
+    }
+
+    scored.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
+    let mut out = Vec::new();
+    for (_s, doc_id, snippet) in scored.into_iter().take(top_k) {
+        let mut m = std::collections::BTreeMap::new();
+        // Provide both keys to reduce LLM confusion:
+        // - documents use "id"
+        // - downstream schema uses "doc_id"
+        m.insert("id".to_string(), Value::Str(doc_id.clone()));
+        m.insert("doc_id".to_string(), Value::Str(doc_id));
+        m.insert("snippet".to_string(), Value::Str(snippet));
+        out.push(Value::Dict(m));
+    }
+    Ok(out)
+}
+
+fn extract_window(text: &str, start_byte: usize, needle_len: usize, window: usize) -> String {
+    // Best-effort: treat start_byte as a byte offset into UTF-8, but clamp safely.
+    let window = window.max(1);
+    let start = start_byte.saturating_sub(window);
+    let end = (start_byte + needle_len + window).min(text.len());
+    // Snap to UTF-8 boundaries.
+    let start = snap_to_char_boundary(text, start);
+    let end = snap_to_char_boundary(text, end);
+    text[start..end].to_string()
+}
+
+fn snap_to_char_boundary(s: &str, mut i: usize) -> usize {
+    i = i.min(s.len());
+    while i > 0 && !s.is_char_boundary(i) {
+        i -= 1;
+    }
+    i
 }
 
 fn call_callable(
@@ -621,14 +1017,22 @@ fn call_callable(
     args: Vec<Value>,
     kwargs: HashMap<String, Value>,
     env: &mut Env,
+    sink: &mut PrintSink,
 ) -> Result<Value, ReplError> {
     use super::value::Callable::*;
     match c {
+        Module { module, attr } if module == "__builtins__" && attr == "range" => {
+            // Delegate to the builtin implementation.
+            call_name("range", args, kwargs, env, sink)
+        }
         Module { module, attr } => call_module_method(&module, &attr, args, kwargs, env),
         BytesDecode { bytes } => call_bytes_method(&bytes, "decode", args, kwargs),
         StrStrip { s } => call_str_method(&s, "strip", args, kwargs),
         StrLower { s } => call_str_method(&s, "lower", args, kwargs),
         StrFind { s } => call_str_method(&s, "find", args, kwargs),
+        StrReplace { s } => call_str_method(&s, "replace", args, kwargs),
+        StrSplit { s } => call_str_method(&s, "split", args, kwargs),
+        StrStartsWith { s } => call_str_method(&s, "startswith", args, kwargs),
         MatchGroup { m } => call_match_method(&m, "group", args, kwargs),
     }
 }
@@ -680,6 +1084,36 @@ fn call_attr(
         Value::Str(s) => call_str_method(&s, attr, args, kwargs),
         Value::Bytes(b) => call_bytes_method(&b, attr, args, kwargs),
         Value::Match(m) => call_match_method(&m, attr, args, kwargs),
+        Value::Dict(m) => {
+            if attr != "get" {
+                return Err(ReplError::TypeError(format!("object has no attribute {}", attr)));
+            }
+            if !kwargs.is_empty() {
+                return Err(ReplError::ForbiddenSyntax("keyword args".into()));
+            }
+            if args.len() != 1 && args.len() != 2 {
+                return Err(ReplError::TypeError("dict.get(key[, default])".into()));
+            }
+            let default = args.get(1).cloned().unwrap_or(Value::None);
+            match &args[0] {
+                Value::Str(k) => Ok(m.get(k).cloned().unwrap_or(default)),
+                Value::Int(i) => {
+                    if *i < 0 {
+                        return Ok(default);
+                    }
+                    let idx = *i as usize;
+                    let key = m.keys().nth(idx).cloned();
+                    match key {
+                        Some(k) => Ok(m.get(&k).cloned().unwrap_or(default)),
+                        None => Ok(default),
+                    }
+                }
+                other => Err(ReplError::TypeError(format!(
+                    "dict.get key must be str|int, got {}",
+                    other.type_name()
+                ))),
+            }
+        }
         _ => Err(ReplError::TypeError(format!(
             "object has no attribute {}",
             attr
@@ -710,6 +1144,10 @@ fn eval_attribute(
                 module: "json".into(),
                 attr: "loads".into(),
             })),
+            ("json", "dumps") => Ok(Value::Callable(super::value::Callable::Module {
+                module: "json".into(),
+                attr: "dumps".into(),
+            })),
             ("base64", "b64decode") => Ok(Value::Callable(super::value::Callable::Module {
                 module: "base64".into(),
                 attr: "b64decode".into(),
@@ -738,6 +1176,15 @@ fn eval_attribute(
         }
         Value::Str(s) if attr == "find" => {
             Ok(Value::Callable(super::value::Callable::StrFind { s }))
+        }
+        Value::Str(s) if attr == "replace" => {
+            Ok(Value::Callable(super::value::Callable::StrReplace { s }))
+        }
+        Value::Str(s) if attr == "split" => {
+            Ok(Value::Callable(super::value::Callable::StrSplit { s }))
+        }
+        Value::Str(s) if attr == "startswith" => {
+            Ok(Value::Callable(super::value::Callable::StrStartsWith { s }))
         }
         Value::Match(m) if attr == "group" => {
             Ok(Value::Callable(super::value::Callable::MatchGroup { m }))
@@ -781,8 +1228,36 @@ fn call_json(
                 serde_json::from_str(s).map_err(|e| ReplError::ValueError(e.to_string()))?;
             json_to_value(&v)
         }
+        "dumps" => {
+            if args.len() != 1 {
+                return Err(ReplError::TypeError("json.dumps(obj)".into()));
+            }
+            let v = value_to_json(&args[0])?;
+            Ok(Value::Str(
+                serde_json::to_string(&v).map_err(|e| ReplError::ValueError(e.to_string()))?,
+            ))
+        }
         _ => Err(ReplError::NameError(format!("json.{}", attr))),
     }
+}
+
+fn value_to_json(v: &Value) -> Result<serde_json::Value, ReplError> {
+    Ok(match v {
+        Value::None => serde_json::Value::Null,
+        Value::Bool(b) => serde_json::Value::Bool(*b),
+        Value::Int(i) => serde_json::Value::Number((*i).into()),
+        Value::Str(s) => serde_json::Value::String(s.clone()),
+        Value::Bytes(b) => serde_json::Value::String(base64::engine::general_purpose::STANDARD.encode(b)),
+        Value::List(xs) => serde_json::Value::Array(xs.iter().map(value_to_json).collect::<Result<_,_>>()?),
+        Value::Dict(m) => {
+            let mut out = serde_json::Map::new();
+            for (k, vv) in m {
+                out.insert(k.clone(), value_to_json(vv)?);
+            }
+            serde_json::Value::Object(out)
+        }
+        _ => return Err(ReplError::TypeError("json.dumps unsupported type".into())),
+    })
 }
 
 fn json_to_value(v: &serde_json::Value) -> Result<Value, ReplError> {
@@ -966,6 +1441,33 @@ fn call_str_method(
             }
             let sub = args[0].as_str()?;
             Ok(Value::Int(s.find(sub).map(|i| i as i64).unwrap_or(-1)))
+        }
+        "replace" => {
+            if args.len() != 2 {
+                return Err(ReplError::TypeError("replace(old, new)".into()));
+            }
+            let old = args[0].as_str()?;
+            let new = args[1].as_str()?;
+            Ok(Value::Str(s.replace(old, new)))
+        }
+        "split" => {
+            if args.len() > 1 {
+                return Err(ReplError::TypeError("split([sep])".into()));
+            }
+            let parts: Vec<String> = if args.is_empty() {
+                s.split_whitespace().map(|x| x.to_string()).collect()
+            } else {
+                let sep = args[0].as_str()?;
+                s.split(sep).map(|x| x.to_string()).collect()
+            };
+            Ok(Value::List(parts.into_iter().map(Value::Str).collect()))
+        }
+        "startswith" => {
+            if args.len() != 1 {
+                return Err(ReplError::TypeError("startswith(prefix)".into()));
+            }
+            let p = args[0].as_str()?;
+            Ok(Value::Bool(s.starts_with(p)))
         }
         _ => Err(ReplError::NameError(format!("str.{}", attr))),
     }
@@ -1356,11 +1858,23 @@ fn eval_subscript(
             let idx_v = eval_expr(&e.slice, env, sink)?;
             match v {
                 Value::Dict(m) => {
-                    let key = match idx_v {
-                        Value::Str(s) => s,
-                        _ => return Err(ReplError::TypeError("dict index must be str".into())),
-                    };
-                    Ok(m.get(&key).cloned().unwrap_or(Value::None))
+                    match idx_v {
+                        Value::Str(s) => Ok(m.get(&s).cloned().unwrap_or(Value::None)),
+                        // Non-Python extension for LLM robustness:
+                        // allow integer indexing into dict values using sorted key order.
+                        Value::Int(i) => {
+                            if i < 0 {
+                                return Err(ReplError::ValueError("index out of range".into()));
+                            }
+                            let idx = i as usize;
+                            let key = m.keys().nth(idx).cloned();
+                            match key {
+                                Some(k) => Ok(m.get(&k).cloned().unwrap_or(Value::None)),
+                                None => Err(ReplError::ValueError("index out of range".into())),
+                            }
+                        }
+                        _ => Err(ReplError::TypeError("dict index must be str".into())),
+                    }
                 }
                 Value::Str(st) => {
                     let idx = match idx_v {

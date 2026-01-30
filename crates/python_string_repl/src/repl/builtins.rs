@@ -127,6 +127,7 @@ pub fn make_initial_env(max_zlib_output_bytes: usize, context: &str, query: &str
             name: "zlib".into(),
         }),
     );
+    // range(...) is a builtin function implemented by the evaluator.
 
     Env::new(globals, max_zlib_output_bytes)
 }

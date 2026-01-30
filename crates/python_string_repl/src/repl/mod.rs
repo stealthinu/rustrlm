@@ -2,7 +2,7 @@ mod allowlist;
 mod builtins;
 mod eval;
 mod parse;
-mod state;
+pub mod state;
 mod value;
 
 pub use value::Value;
@@ -50,6 +50,22 @@ pub struct ReplEngine {
     cfg: ReplConfig,
 }
 
+fn format_error(e: &crate::error::ReplError) -> String {
+    use crate::error::ReplError;
+    let needs_hint = matches!(
+        e,
+        ReplError::ForbiddenSyntax(_)
+            | ReplError::ForbiddenName(_)
+            | ReplError::NameError(_)
+            | ReplError::ParseError(_)
+    );
+    if needs_hint {
+        format!("{}\n\n{}", e, ReplError::subset_hint())
+    } else {
+        e.to_string()
+    }
+}
+
 impl ReplEngine {
     pub fn new(cfg: ReplConfig) -> Self {
         Self { cfg }
@@ -79,7 +95,7 @@ impl ReplEngine {
                 return ExecResponse {
                     ok: false,
                     output: String::new(),
-                    error: Some(e.to_string()),
+                    error: Some(format_error(&e)),
                     state: Some(base_state),
                 };
             }
@@ -93,7 +109,7 @@ impl ReplEngine {
                 return ExecResponse {
                     ok: false,
                     output: String::new(),
-                    error: Some(e.to_string()),
+                    error: Some(format_error(&e)),
                     state: Some(base_state),
                 };
             }
@@ -112,7 +128,7 @@ impl ReplEngine {
             return ExecResponse {
                 ok: false,
                 output: String::new(),
-                error: Some(e.to_string()),
+                error: Some(format_error(&e)),
                 state: Some(env.dump_state()),
             };
         }
@@ -155,7 +171,7 @@ impl ReplEngine {
                 ExecResponse {
                     ok: false,
                     output: String::new(),
-                    error: Some(e.to_string()),
+                    error: Some(format_error(&e)),
                     state: Some(state),
                 }
             }

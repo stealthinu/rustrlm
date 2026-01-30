@@ -80,6 +80,30 @@ class RustRLMClientTests(unittest.TestCase):
         self.assertEqual(len(res["results"]), 1)
         self.assertEqual(res["results"][0]["doc_id"], "b")
 
+    def test_langchain_retriever(self):
+        try:
+            from rustrlm_client import RustRLMClient
+            from rustrlm_client.integrations.langchain import RustRLMRetriever
+        except Exception as exc:
+            self.skipTest(f"langchain-core not available: {exc}")
+
+        client = RustRLMClient(base_url=f"http://{self.addr[0]}:{self.addr[1]}")
+        retriever = RustRLMRetriever(
+            client,
+            options={
+                "documents": [
+                    {"id": "a", "text": "alpha"},
+                    {"id": "b", "text": "quick brown fox"},
+                ]
+            },
+        )
+        if hasattr(retriever, "get_relevant_documents"):
+            docs = retriever.get_relevant_documents("brown")
+        else:
+            docs = retriever.invoke("brown")
+        self.assertEqual(len(docs), 1)
+        self.assertEqual(docs[0].metadata.get("doc_id"), "b")
+
 
 if __name__ == "__main__":
     unittest.main()

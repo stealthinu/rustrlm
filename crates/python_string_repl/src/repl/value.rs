@@ -116,5 +116,8 @@ pub enum Callable {
     StrStrip { s: String },
     StrLower { s: String },
     StrFind { s: String },
+    StrReplace { s: String },
+    StrSplit { s: String },
+    StrStartsWith { s: String },
     MatchGroup { m: MatchObject },
 }
