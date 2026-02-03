@@ -1,226 +1,51 @@
 Goal (incl. success criteria):
-- Make LLM+REPL-backed `/v1/retrieve` usable without deterministic fallback: high LLM-path success rate, clear failure warnings, and REPL subset expanded only as needed.
+- (Main only) Make `graham_essays/small` retrieval comparisons reproducible and interpretable by adding explicit hit-eval modes (named “strict/relaxed/doc_id”) and printing enough context to debug misses.
 
 Constraints/Assumptions:
 - Follow AGENTS.md instructions for this workspace.
-- Use required skills (using-superpowers, brainstorming) before creative work.
 - Write tests first for behavior changes (t_wada TDD).
 - Maintain security guardrails (no file I/O, networking, subprocesses in interpreter).
-- Python venv is not available (ensurepip missing); Python deps are installed under vendor/python and used via PYTHONPATH.
-- Docs are written in Japanese (user preference).
+- Python deps are vendored under `vendor/python`; run scripts with `PYTHONPATH=python:vendor/python`.
 - Secrets: API keys are stored locally in `.env` (gitignored); never commit secrets.
-- Active implementation work is in a worktree: `/home/stealth/restrlm/.worktrees/llm-retrieve`.
 
 Key decisions:
-- Docs language: Japanese.
-- Sample documents for retrieval examples: Paul Graham essays (short excerpts).
-- Place samples in docs plus runnable scripts under `python/examples`.
-- Baseline priority shifted: prefer running and extracting behavior from the non-official implementation + test data; treat `alexzhang13/rlm` as a reference point.
-- Defer language-feature decisions (e.g. `re`) until behavior is confirmed by running the baseline(s).
-- Import policy (Rust target): allow `import ...` / `from ... import ...` as a no-op that *only* binds from pre-injected, allowlisted modules/symbols; never perform dynamic importing.
-- Import allowlist expansion strategy: (1) seed with the same “safe stdlib” modules the unofficial Python backend pre-injects, and (2) iteratively add only the specific symbols observed in transcripts/evals.
-- RLM rewrite LLM client: OpenAI API fixed; read `OPENAI_API_KEY` from `.env`; use `gpt-5.2` (root) + `gpt-5-mini` (recursive).
-- Repo strategy: keep a single monorepo/workspace; do not split into separate GitHub repos for REPL vs RLM.
-- Product direction: position RustRLM as a “retrieval layer” alternative to RAG (broad sense). First integration target is retriever replacement in LangChain/LlamaIndex.
-- Retrieval integration: expose a stable HTTP JSON Retrieval API + a small Python client; framework-specific adapters are thin type/shape conversions.
-- In-process usage: add a Rust library API for retrieval and a Python binding (PyO3). Initial Python distribution is source-build only; wheels later if demand.
-- In-process API shape: function-based (no class-based client) for Python and Rust.
-- Document input: `id` is optional; auto-assign a stable id when missing.
-- LangChain adapter stores score in `Document.metadata["score"]`.
-- Retrieval API (`/v1/retrieve`) uses LLM+REPL while keeping the existing response schema for retriever drop‑in.
-- `retrieve` scores are LLM‑produced confidence/accuracy scaled 0.0–1.0.
+- Evaluate `graham_essays/small` with multiple match modes because RustRLM `retrieve` can return LLM-provided `snippet` (not always containing `ground_truth_context` even when the doc is correct).
+- Match modes (CLI):
+  - `strict`: whitespace-normalized substring (close to original script behavior)
+  - `relaxed`: alnum-substring OR fuzzy similarity on alnum-normalized strings (SequenceMatcher; default threshold 0.72)
+  - `doc_id`: reverse-map `ground_truth_context` -> corpus `doc_id` and compare by `doc_id` only
 
 State:
-- Main repo includes LLM client, RLM loop, prompts, and LLM+REPL `retrieve` (axum server on 8080 for local eval).
-- Deterministic fallback is optional; when LLM is enabled, default is no-fallback (return empty + warnings on failure).
-- REPL subset expanded for common patterns (listcomp, dict literals, range, boolop, in/not in, unpack for-target, list.append, dict.get, str.replace/split/startswith, json.dumps).
-- RLM loop defaults aligned to unofficial harness: max_iterations=20, timeout=90s, retries=5; early abort-on-repl-errors removed.
-- Current blocker: model often returns `FINAL(...)` before any REPL execution, causing repeated `final_before_repl` and eventual `final_not_found` even though REPL code is sometimes produced late.
+- Repo has multiple worktrees, but evaluation/dev focus is `main` only.
+- RustRLM server provides `POST /v1/retrieve` (LLM+REPL when `.env` contains `OPENAI_API_KEY`); run via `cargo run -p rlm_runner -- serve --port <PORT>`.
+- `python/examples/compare_retrievers_graham_essays.py` supports `--match-mode` and prints `doc_id|text` for top1.
 
 Done:
-- Read using-superpowers skill.
-- Attempted to read CONTINUITY.md (was missing).
-- Created initial docs and TODO scaffolding (TODO.md, docs/rlm/*).
-- Cloned official repo `alexzhang13/rlm` at 6eb5f6be87eec214bd6b75b23f8dff60d9242f6c.
-- Extracted initial REPL protocol notes from official tests/code.
-- Downloaded arXiv HTML for 2512.24601v1 and extracted embedded listings + ```repl blocks into a local corpus.
-- Cloned non-official repo `ysz/recursive-llm` at 2fb46cc59e64cddc0768ce0bf428138dab3016eb.
-- Documented initial REPL behavior notes for the non-official implementation.
-- Ran the non-official REPL executor on the paper-derived repl corpus and recorded results (import statements fail; `re` works without import).
-- Ran the non-official repo tests; noted 1 failing integration test related to comprehension + slicing behavior.
-- Downloaded benchmark paper PDFs and extracted candidate dataset source URLs.
-- Identified dataset release sources on Hugging Face for key benchmarks (BrowseComp+, LongBench-v2, OOLONG variants).
-- Downloaded several HF datasets locally (BrowseComp+ tasks/corpus, LongBench-v2, smaller OOLONG-synth variants).
-- Cloned RULER repo for S-NIAH/NIAH task generation.
-- Extracted OOLONG-Pairs task prompts embedded in the RLM paper (Appendix E.1).
-- Generated a seeded S-NIAH-like dataset (50 tasks) into `extracted/eval/s_niah.jsonl`.
-- Ran a probe harness over real benchmark inputs and recorded results in `extracted/runs/repl_probes.jsonl`.
-- Expanded the probe set (for/if, f-strings, generator-expr+any, json.loads, re.split) and confirmed these pass; failures remain limited to `import` and listcomp expr-scope capture.
-- Recorded Hugging Face dataset repo SHAs (pinning targets) in `docs/rlm/eval/dataset-sources.md`.
-- Wrote probe results memo: `docs/rlm/eval/repl-probe-results.md`.
-- Added repo hygiene files: `.gitignore` (ignore `.env`, `upstream/`, `extracted/`, `vendor/python/`), `.env.example`, `README.md`, `.editorconfig`.
-- Generated `requirements-vendor.txt` to recreate `vendor/python` dependencies without committing vendored libs.
-- Added local tools to validate OpenAI model access and run a budget-capped unofficial RLM evaluation:
-  - `tools/check_openai_models.py`
-  - `tools/run_unofficial_rlm_budgeted_eval.py`
-  - `tools/load_dotenv_local.py`
-- Verified OpenAI API access: `gpt-5.2` OK; `gpt-5.2-mini` unavailable (NotFound/no access); `gpt-5-mini` OK.
-- Ran the 1/10-scale task-count eval (30 tasks) with unofficial baseline RLM:
-  - root model: `gpt-5.2`, recursive model: `gpt-5-mini`
-  - output: `extracted/runs/unofficial_tasks30.jsonl` (15 BrowseComp+, 5 CodeQA, 5 OOLONG-synth-small, 5 S-NIAH)
-  - approximate cost (LiteLLM estimate, summed across run segments): ~$2.25 (UNCONFIRMED vs dashboard)
-- Implemented REPL transcript logging and ran the same 30-task set with transcripts:
-  - runner: `tools/run_unofficial_rlm_logged_eval.py`
-  - results: `extracted/runs/unofficial_tasks30_logged.jsonl`
-  - transcript: `extracted/runs/unofficial_tasks30_transcript.jsonl`
-  - analysis: `tools/analyze_repl_transcript.py` -> `extracted/runs/unofficial_tasks30_repl_analysis.json`
-  - docs: `docs/rlm/eval/unofficial-tasks30-repl-log.md`, `docs/rlm/eval/unofficial-tasks30-required-subset.md`
-- Confirmed transcript logging works on a single-task smoke run:
-  - `extracted/runs/log_smoke3_tasks.jsonl`
-  - `extracted/runs/log_smoke3_transcript.jsonl`
-  - Note: model often outputs `FINAL(var)` which is not parseable by the baseline parser, causing extra REPL iterations.
-- Fixed transcript instrumentation to log FINAL parsing events by patching `rlm.core.parse_response` (core imports parser symbols by value):
-  - verified with `extracted/runs/log_smoke4_transcript.jsonl` containing `final_parsed` events.
-- Fixed a bug in `tools/run_unofficial_rlm_logged_eval.py` where `error` could remain set from a previous failed attempt even after a later retry succeeded (future runs only).
-- Added rerun support to `tools/run_unofficial_rlm_logged_eval.py`:
-  - `--only-import-errors-from-transcript` (re-exec just prior `__import__ not found` tasks)
-  - `--inject-b64zlib` (inject base64/binascii + capped zlib + missing RestrictedPython guards for observation)
-- Added transcript filtering helper: `tools/filter_transcript_by_tasks.py`.
-- Reran only the import-failure tasks (9) with injected base64/binascii + capped zlib + guards:
-  - results: `extracted/runs/unofficial_importfail_rerun_logged.jsonl` (9/9 ok)
-  - transcript: `extracted/runs/unofficial_importfail_rerun_transcript.jsonl`
-  - analysis: `extracted/runs/unofficial_importfail_rerun_repl_analysis.json`
-  - baseline subset (same 9 tasks from old 30): `extracted/runs/unofficial_importfail_baseline_*`
-  - diff: `extracted/runs/unofficial_importfail_repl_diff.json`
-  - memo: `docs/rlm/eval/unofficial-importfail-rerun-summary.md`
-  - note: REPL-level errors still occur (e.g. model writes `FINAL(...)` as code), but `__import__ not found` dropped sharply (baseline 18 -> rerun 1 in these 9 tasks).
-- Created a Rust crate implementing a safe, deterministic, string-focused Python-REPL-like subset (CLI):
-  - CLI entry: `src/main.rs` (JSON in/out)
-  - engine: `src/repl/mod.rs` (+ `allowlist.rs`, `parse.rs`, `eval.rs`, `builtins.rs`, `value.rs`)
-  - tests (system-level, 10 cases): `tests/system_repl.rs` (+ `tests/zlib_bomb_1100000_a.b64`)
-  - design doc: `docs/plans/2026-01-25-rust-repl-implementation-design.md`
-  - all tests pass: `CARGO_HOME=$PWD/.cargo-home cargo test`
-  - lint: `CARGO_HOME=$PWD/.cargo-home cargo clippy --all-targets --all-features -- -D warnings`
-- Parity tooling + fixes (LLM-free):
-  - Added transcript replay tool: `tools/replay_transcript_with_rust_cli.py`
-  - Extended Rust subset to match the unofficial executor output/state semantics:
-    - Output truncation marker matches upstream (`[Output truncated: ...]`)
-    - Python-ish `re.Match` / list printing for parity
-    - list slicing support
-    - "No code to execute" for empty input
-    - Echo last expression (e.g. `query`, `s`) to output
-    - Preserve state even on execution errors
-    - Emulate RestrictedPython `_print` leakage via internal `_print_txt` (and clear it when code contains `print(...)`)
-  - Replay results:
-    - `unofficial_importfail_rerun_transcript.jsonl` vs Rust: mismatches=0
-    - `unofficial_tasks30_transcript.jsonl` vs Rust: mismatches=1 (expected; baseline transcript assumes no base64 injection)
-  - Updated Python side adapter to apply Rust state even on errors: `upstream/recursive-llm/src/rlm/repl.py`
-- End-to-end integration runs:
-  - Fixed `tools/run_unofficial_rlm_logged_eval.py --inject-b64zlib` to work when `RLM_REPL_BACKEND=rust` (Rust executor has no `_build_globals`).
-  - Ran smoke eval with Rust backend + strict-code to ensure REPL logs are clean (no prose-as-code / no import attempts):
-    - `extracted/runs/rust_backend_smoke5_transcript.jsonl`
-    - `extracted/runs/rust_backend_smoke5_repl_analysis.json`
-  - Ran 30-task eval with Rust backend (same task-count mix as baseline): 
-    - `extracted/runs/rust_backend_tasks30_transcript.jsonl`
-    - `extracted/runs/rust_backend_tasks30_repl_analysis.json`
-  - Ran 30-task eval with Python RestrictedPython backend + injection + strict-code to get a “base64/zlib available” baseline transcript:
-    - `extracted/runs/unofficial_injected_tasks30_transcript.jsonl`
-    - `extracted/runs/unofficial_injected_tasks30_repl_analysis.json`
-  - Replay parity results (Rust CLI vs transcripts):
-    - `unofficial_importfail_rerun_transcript.jsonl`: mismatches=0
-    - `unofficial_tasks30_transcript.jsonl`: mismatches=1 (expected due to base64 injection differences)
-    - `unofficial_injected_tasks30_transcript.jsonl`: mismatches=1 (one `print(context[:1000])` expected output differs; cause UNCONFIRMED)
-  - Prompt hardening status:
-    - Base prompt: `upstream/recursive-llm/src/rlm/prompts.py` (paper-style; allows prose/import unless patched)
-    - Runner option `--strict-code` appends code-only/ASCII/no-import constraints (and `--inject-b64zlib` adds “base64/binascii/zlib are pre-provided” note).
-	    - Observed errors in transcripts:
-	      - `rust_backend_smoke5_transcript.jsonl`: parse=0, import=0
-	      - `rust_backend_tasks30_transcript.jsonl`: parse=13, import-related=4 (needs further prompt tightening or input normalization if we want ~0)
-	- Implemented permissive import handling in Rust REPL (no-op + allowlisted bindings) and added system tests:
-	  - supports `import X`, `import X as Y`, `from X import y [as z]`, `import a, b, c`
-	  - current allowlist bindings: `re` (`search`, `findall`, `IGNORECASE`, `DOTALL`), `base64` (`b64decode`), `binascii` (`hexlify`), `zlib` (`decompress`, `MAX_WBITS`)
-	  - added `json` (`loads`) + dict/list indexing needed for `json.loads` outputs
-	- Verified: `cargo test` + `cargo clippy --all-targets --all-features -- -D warnings` pass (with `CARGO_HOME=$PWD/.cargo-home`).
-	- Initialized git history: created first commit on branch `main`; ensured `.cargo-home/` is gitignored.
-	- Published repo to GitHub: `stealthinu/rustrlm` (public), `origin` configured, `main` pushed.
-	- Began Rust workspace split (crate separation) and added RLM runner design doc: `docs/plans/2026-01-25-rust-rlm-runner-design.md`.
-	- Prepared a project-local Codex home at `/home/stealth/restrlm/.codex` by copying relevant `~/.codex` files and rewriting session `cwd` from `/home/stealth/python-string-repl` to `/home/stealth/restrlm` (sandbox prevents edits under `/home/stealth/.codex`).
-- Wrote Retrieval API spec (inline documents) and implemented HTTP server endpoints:
-  - Spec: `docs/rlm/plans/2026-01-26-rustrlm-retrieval-api-design.md`
-  - Server: `GET /v1/health`, `GET /v1/version`, `POST /v1/retrieve` (axum)
-  - Tests: `crates/rlm_runner/tests/retrieve_api_tests.rs` (TDD, green)
-- Wrote design doc for in-process retrieval API (function-based):
-  - `docs/plans/2026-01-26-inprocess-retrieval-design.md`
-- Added sample docs and runnable examples for `retrieve` with LangChain/LlamaIndex:
-  - `docs/rlm/examples/retrieve-langchain-llamaindex.md`
-  - `python/examples/sample_docs.py`
-  - `python/examples/langchain_retrieve.py`
-  - `python/examples/llamaindex_retrieve.py`
-- Fixed LangChain adapter initialization (pydantic fields) and added a LangChain retriever test:
-  - `python/rustrlm_client/integrations/langchain.py`
-  - `python/tests/test_rustrlm_client.py`
-- Installed Python deps into `vendor/python` for samples: `langchain-core`, `llama-index` (via `/usr/bin/python3 -m pip`).
-- Ran examples against RustRLM server on port 8090; captured outputs in `/tmp/rustrlm_langchain_output.txt` and `/tmp/rustrlm_llamaindex_output.txt`.
-- Ran `python/tests/test_rustrlm_client.py` (unittest) with `PYTHONPATH=python:vendor/python` (OK; ResourceWarning about unclosed socket).
-- Web search for PG essay datasets found synthetic/labelled options:
-  - Hugging Face `RNDRandoM/paul-graham-essays-qa` (synthetic Q&A),
-  - continuous-eval `graham_essays/small/*` example datasets (questions + baseline results),
-  - PG essay text datasets on Hugging Face (no official ground-truth).
-- Added comparison script using continuous-eval graham_essays dataset + ground_truth_context:
-  - `python/examples/compare_retrievers_graham_essays.py`
-- Updated dependency list to include comparison deps: `continuous-eval`, `langchain-community`, `rank-bm25`.
-- Ran comparison script against RustRLM server (port 8091); output saved to `/tmp/rustrlm_compare_output.txt`.
-- Added json.dumps + dict literal support in Rust REPL; added tests `sys_json_dumps_roundtrip`, `sys_dict_literal_access`.
-- Updated RLM loop to capture last_response on max iterations and accept JSON-shaped responses; reduced max_iterations default to 4.
-- Retrieval prompt tightened to force REPL preview, forbid doc_id invention, and surface raw output when doc_id mismatch.
-- Ran graham_essays comparison with limit=4 (top_k=3): RustRLM Hit@3 0%, LangChain BM25 0%, LlamaIndex Simple 20%.
-- Added S-NIAH comparison script (paper task) and ran it:
-  - `python/examples/compare_retrievers_s_niah.py`
-  - output: `/tmp/rustrlm_sniah_output.txt` (Hit@3: RustRLM 96%, LangChain BM25 100%, LlamaIndex Simple 20%)
-- Added design doc for LLM+REPL-backed `retrieve`:
-  - `docs/plans/2026-01-28-rustrlm-llm-retrieve-design.md`
-- Updated docs to reflect LLM+REPL retrieve:
-  - `docs/rlm/plans/2026-01-26-rustrlm-retrieval-api-design.md`
-  - `docs/rlm/examples/retrieve-langchain-llamaindex.md`
-  - `docs/plans/2026-01-26-inprocess-retrieval-design.md`
-- Updated docs and code to redefine `retrieve` as LLM+REPL (worktree):
-  - Added OpenAI client + mock (`crates/rlm_runner/src/llm_client.rs`)
-  - Added RLM loop (`crates/rlm_runner/src/rlm_loop.rs`)
-  - Added LLM JSON parser (`crates/rlm_runner/src/retrieve_parse.rs`)
-  - `retrieve` now builds REPL state with `documents` and runs LLM+REPL to rank
-  - Server state extended to carry LLM client
-  - Tests updated for new behavior
-  - Example scripts updated with timeouts
-  - Docs/plans updated to reflect LLM-backed retrieve
-- Started main-repo LLM+REPL implementation:
-  - Added `llm_client`, `rlm_loop`, `prompts` modules in `rlm_runner`
-  - Updated `retrieve` to use LLM+REPL loop + JSON parsing/repair
-  - Updated server state to inject LLM client (mock for tests)
-  - Exposed REPL state module for injection
-- Ran graham_essays comparison (LLM+REPL main repo, server on 8080):
-  - RustRLM Hit@3 0.00%, LangChain BM25 47.27%, LlamaIndex Simple 52.73%
-- Implemented REPL subset + retrieval hardening (main repo):
-  - Added list comprehension support (`[expr for name in iterable if cond]`) + tests
-  - Added REPL subset hint to parse/allowlist/name errors
-  - Updated retrieval system prompt to document subset & forbid `type()` and dict literals
-  - Added `rank_documents(...)` helper (built-in) for safer retrieval scripting
-  - Added deterministic fallback retrieval + `RUSTRLM_DISABLE_LLM=1` mode (no OpenAI calls)
-- Ran graham_essays comparison in fallback-only mode (`RUSTRLM_DISABLE_LLM=1`):
-  - Hit@3: RustRLM 12.73%, LangChain BM25 47.27%, LlamaIndex Simple 58.18%
+- Added eval helpers + TDD:
+  - `python/rustrlm_client/eval/matching.py`
+  - `python/tests/test_eval_matching.py`
+- Updated graham essays comparison script:
+  - `python/examples/compare_retrievers_graham_essays.py` (`--match-mode strict|relaxed|doc_id`, fixed limit counting, propagates `doc_id` through metadata)
+- Ran eval (server port 8099, limit=5, top_k=3), outputs in `/tmp`:
+  - strict: RustRLM=20%, LangChain-BM25=20%, LlamaIndex=20% (`/tmp/rustrlm_compare_graham_strict.txt`)
+  - relaxed: RustRLM=40%, LangChain-BM25=40%, LlamaIndex=20% (`/tmp/rustrlm_compare_graham_relaxed.txt`)
+  - doc_id: RustRLM=60%, LangChain-BM25=40%, LlamaIndex=20% (`/tmp/rustrlm_compare_graham_docid.txt`)
 
 Now:
-- Investigate & fix "FINAL before REPL" loop: use logs to identify why model keeps outputting FINAL, then adjust rejection feedback/prompt to force code-first.
+- Explain per-query failures for `limit=5` using the new modes (most strict misses are snippet/escaping artifacts; remaining doc_id misses are true retrieval errors).
+- Commit main-branch changes (eval match modes + tests) and delete unused feature worktrees/branches.
 
 Next:
-- Strengthen "REPL_REQUIRED" feedback (code-only, no FINAL) and/or relax acceptance criteria (optionally accept FINAL without REPL with warning) depending on desired protocol.
+- If needed: add an “explain” output mode that prints retrieved top-k doc_ids per retriever and highlights why strict/relaxed/doc_id differs.
+- If goal is higher doc_id hit rate: tune RustRLM retrieve prompt and/or change response to always return full doc text + spans (instead of snippet-only) for RAG drop-in.
 
 Open questions (UNCONFIRMED if needed):
-- Whether to implement in main repo or the existing worktree at `/home/stealth/restrlm/.worktrees/llm-retrieve`.
+- None.
 
 Working set (files/ids/commands):
-- /home/stealth/restrlm/CONTINUITY.md
-- /home/stealth/restrlm/.worktrees/llm-retrieve
-- /home/stealth/restrlm/.worktrees/llm-retrieve/crates/rlm_runner/src/retrieve.rs
-- /home/stealth/restrlm/.worktrees/llm-retrieve/python/examples/compare_retrievers_graham_essays.py
-- /tmp/rustrlm_llm_retrieve_server.log
-- /tmp/rustrlm_compare_output_llm.txt
+- `python/examples/compare_retrievers_graham_essays.py`
+- `python/rustrlm_client/eval/matching.py`
+- `python/tests/test_eval_matching.py`
+- `/tmp/rustrlm_compare_graham_strict.txt`
+- `/tmp/rustrlm_compare_graham_relaxed.txt`
+- `/tmp/rustrlm_compare_graham_docid.txt`
