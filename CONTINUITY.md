@@ -30,17 +30,23 @@ Done:
   - strict: RustRLM=20%, LangChain-BM25=20%, LlamaIndex=20% (`/tmp/rustrlm_compare_graham_strict.txt`)
   - relaxed: RustRLM=40%, LangChain-BM25=40%, LlamaIndex=20% (`/tmp/rustrlm_compare_graham_relaxed.txt`)
   - doc_id: RustRLM=60%, LangChain-BM25=40%, LlamaIndex=20% (`/tmp/rustrlm_compare_graham_docid.txt`)
+- Committed main changes (2 commits):
+  - `5a71631` Add strict/relaxed/doc_id match modes for graham essays eval
+  - `f28c804` Add eval matching helpers and tests
 
 Now:
 - Explain per-query failures for `limit=5` using the new modes (most strict misses are snippet/escaping artifacts; remaining doc_id misses are true retrieval errors).
 - Commit main-branch changes (eval match modes + tests) and delete unused feature worktrees/branches.
+  - Blocker: feature worktrees are dirty (uncommitted changes) so deleting would drop work.
 
 Next:
 - If needed: add an “explain” output mode that prints retrieved top-k doc_ids per retriever and highlights why strict/relaxed/doc_id differs.
 - If goal is higher doc_id hit rate: tune RustRLM retrieve prompt and/or change response to always return full doc text + spans (instead of snippet-only) for RAG drop-in.
 
 Open questions (UNCONFIRMED if needed):
-- None.
+- Whether to preserve or discard uncommitted changes in:
+  - `.worktrees/inprocess-retrieval` (modified `CONTINUITY.md`, `docs/plans/2026-01-26-inprocess-retrieval-implementation-plan.md`)
+  - `.worktrees/llm-retrieve` (many modified Rust files + untracked `data/` and `python/examples/`)
 
 Working set (files/ids/commands):
 - `python/examples/compare_retrievers_graham_essays.py`
