@@ -1,5 +1,5 @@
 Goal (incl. success criteria):
-- (Main only) Make `graham_essays/small` retrieval comparisons reproducible and interpretable by adding explicit hit-eval modes (named “strict/relaxed/doc_id”) and printing enough context to debug misses.
+- Compare RustRLM `retrieve` to common vector-RAG retrievers fairly by using the same OpenAI embeddings model in both LangChain and LlamaIndex, and report results under `strict` and `doc_id` match modes.
 
 Constraints/Assumptions:
 - Follow AGENTS.md instructions for this workspace.
@@ -14,6 +14,9 @@ Key decisions:
   - `strict`: whitespace-normalized substring (close to original script behavior)
   - `relaxed`: alnum-substring OR fuzzy similarity on alnum-normalized strings (SequenceMatcher; default threshold 0.72)
   - `doc_id`: reverse-map `ground_truth_context` -> corpus `doc_id` and compare by `doc_id` only
+- Vector baselines:
+  - LangChain: FAISS + OpenAIEmbeddings (model configurable; default `text-embedding-3-small`)
+  - LlamaIndex: VectorStoreIndex + OpenAIEmbedding (same embedding model)
 
 State:
 - Repo has multiple worktrees, but evaluation/dev focus is `main` only.
@@ -35,6 +38,14 @@ Done:
   - doc_id: RustRLM=58.18% (32/55), LangChain-BM25=49.09% (27/55), LlamaIndex-Simple=45.45% (25/55)
   - output: `/tmp/rustrlm_compare_graham_full_strict_docid.txt`
   - RustRLM debug_rlm_iterations sum=123 (avg 2.24 / query) => ~123 chat.completions calls for this run (json_repair not observed in this pass).
+- Added vector retriever baselines to graham essays comparison script (same OpenAI embeddings model for both frameworks) and a `both` match mode to avoid double-running costly retrieval.
+- Ran full eval (55 queries, top_k=3) with vector baselines, outputs in `/tmp`:
+  - vector: `/tmp/rustrlm_compare_graham_full_vector.txt`
+    - strict: RustRLM=20.00%, LangChain-Vector=76.36%, LlamaIndex-Vector=69.09%
+    - doc_id: RustRLM=58.18%, LangChain-Vector=78.18%, LlamaIndex-Vector=70.91%
+  - lexical (current code): `/tmp/rustrlm_compare_graham_full_lexical.txt`
+    - strict: RustRLM=18.18%, LangChain-BM25=45.45%, LlamaIndex-SimpleKeyword=47.27%
+    - doc_id: RustRLM=58.18%, LangChain-BM25=49.09%, LlamaIndex-SimpleKeyword=47.27%
 - Committed main changes (2 commits):
   - `5a71631` Add strict/relaxed/doc_id match modes for graham essays eval
   - `f28c804` Add eval matching helpers and tests
@@ -63,3 +74,5 @@ Working set (files/ids/commands):
 - `/tmp/rustrlm_compare_graham_strict.txt`
 - `/tmp/rustrlm_compare_graham_relaxed.txt`
 - `/tmp/rustrlm_compare_graham_docid.txt`
+- `/tmp/rustrlm_compare_graham_full_vector.txt`
+- `/tmp/rustrlm_compare_graham_full_lexical.txt`

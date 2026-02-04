@@ -37,6 +37,33 @@ except Exception as exc:  # pragma: no cover - optional dependency
     raise SystemExit("llama-index is required for this example.") from exc
 
 
+def load_env_if_missing(var_name: str) -> None:
+    """
+    Lightweight `.env` loader (repo-root) for local runs.
+
+    We intentionally avoid adding python-dotenv as a hard dependency.
+    """
+    if os.environ.get(var_name):
+        return
+    path = os.path.join(REPO_ROOT, ".env")
+    try:
+        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+            for raw in f:
+                line = raw.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, v = line.split("=", 1)
+                k = k.strip()
+                if k != var_name:
+                    continue
+                v = v.strip().strip("'").strip('"')
+                if v:
+                    os.environ[var_name] = v
+                return
+    except FileNotFoundError:
+        return
+
+
 def split_paragraphs(text: str) -> List[str]:
     parts = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
     return parts
@@ -80,7 +107,7 @@ def retrieve_rustrlm(
     return out
 
 
-def retrieve_langchain(retriever: BM25Retriever, query: str, top_k: int) -> List[Tuple[str, str]]:
+def retrieve_langchain(retriever, query: str, top_k: int) -> List[Tuple[str, str]]:
     if hasattr(retriever, "get_relevant_documents"):
         docs = retriever.get_relevant_documents(query)
     else:
@@ -117,31 +144,91 @@ def main() -> None:
     parser.add_argument("--limit", type=int, default=0, help="limit number of queries")
     parser.add_argument(
         "--match-mode",
-        choices=["strict", "relaxed", "doc_id"],
-        default="strict",
-        help="how to count a hit: strict=text ws-substring, relaxed=text fuzzy, doc_id=ground-truth doc_id match",
+        choices=["strict", "relaxed", "doc_id", "both"],
+        default="both",
+        help="how to count a hit: strict=text ws-substring, relaxed=text fuzzy, doc_id=ground-truth doc_id match, both=strict+doc_id",
+    )
+    parser.add_argument(
+        "--langchain-backend",
+        choices=["bm25", "vector"],
+        default="vector",
+        help="LangChain retriever backend",
+    )
+    parser.add_argument(
+        "--llamaindex-backend",
+        choices=["keyword", "vector"],
+        default="vector",
+        help="LlamaIndex retriever backend",
+    )
+    parser.add_argument(
+        "--embedding-model",
+        default=os.environ.get("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small"),
+        help="OpenAI embedding model to use for vector baselines",
     )
     parser.add_argument("--base-url", default=os.environ.get("RUSTRLM_BASE_URL", "http://127.0.0.1:8080"))
     parser.add_argument("--timeout", type=int, default=180, help="HTTP timeout seconds for RustRLMClient")
     args = parser.parse_args()
 
+    load_env_if_missing("OPENAI_API_KEY")
     dataset = example_data_downloader("graham_essays/small/dataset")
     docs_rustrlm, docs_langchain, docs_llama = load_corpus()
 
     client = RustRLMClient(base_url=args.base_url, timeout=args.timeout)
-    lc_retriever = BM25Retriever.from_documents(docs_langchain)
-    # BM25Retriever uses `k` to control output size.
-    if hasattr(lc_retriever, "k"):
-        lc_retriever.k = args.top_k
-    li_index = SimpleKeywordTableIndex.from_documents(docs_llama, show_progress=False)
-    li_retriever = li_index.as_retriever(retriever_mode="simple")
+
+    if args.langchain_backend == "vector":
+        try:
+            from langchain_openai import OpenAIEmbeddings  # type: ignore
+            from langchain_community.vectorstores import FAISS  # type: ignore
+        except Exception as exc:  # pragma: no cover
+            raise SystemExit(
+                "langchain-openai and faiss-cpu are required for --langchain-backend vector.\n"
+                "Install into vendor/python: python3 -m pip install -t vendor/python langchain-openai faiss-cpu"
+            ) from exc
+        if not os.environ.get("OPENAI_API_KEY"):
+            raise SystemExit("OPENAI_API_KEY is required for vector baselines (LangChain).")
+        lc_embeddings = OpenAIEmbeddings(model=args.embedding_model)
+        lc_vs = FAISS.from_documents(docs_langchain, lc_embeddings)
+        lc_retriever = lc_vs.as_retriever(search_kwargs={"k": args.top_k})
+        lc_label = f"LangChain-Vector({args.embedding_model})"
+    else:
+        lc_retriever = BM25Retriever.from_documents(docs_langchain)
+        # BM25Retriever uses `k` to control output size.
+        if hasattr(lc_retriever, "k"):
+            lc_retriever.k = args.top_k
+        lc_label = "LangChain-BM25"
+
+    # Prevent LlamaIndex from doing any LLM calls during indexing/retrieval.
+    try:
+        from llama_index.core import Settings  # noqa: E402
+        from llama_index.core.llms.mock import MockLLM  # noqa: E402
+        Settings.llm = MockLLM()
+    except Exception:
+        pass
+
+    if args.llamaindex_backend == "vector":
+        from llama_index.core import VectorStoreIndex  # noqa: E402
+        from llama_index.embeddings.openai import OpenAIEmbedding  # noqa: E402
+        if not os.environ.get("OPENAI_API_KEY"):
+            raise SystemExit("OPENAI_API_KEY is required for vector baselines (LlamaIndex).")
+        li_embed = OpenAIEmbedding(model=args.embedding_model)
+        li_index = VectorStoreIndex.from_documents(docs_llama, embed_model=li_embed, show_progress=False)
+        li_retriever = li_index.as_retriever(similarity_top_k=args.top_k)
+        li_label = f"LlamaIndex-Vector({args.embedding_model})"
+    else:
+        li_index = SimpleKeywordTableIndex.from_documents(docs_llama, show_progress=False)
+        li_retriever = li_index.as_retriever(retriever_mode="simple")
+        li_label = "LlamaIndex-SimpleKeyword"
 
     corpus_tuples = [(d["id"], d["text"]) for d in docs_rustrlm]
 
+    modes: List[str]
+    if args.match_mode == "both":
+        modes = ["strict", "doc_id"]
+    else:
+        modes = [args.match_mode]
+
     total = 0
-    hits_rustrlm = 0
-    hits_langchain = 0
-    hits_llama = 0
+    hits = {m: {"rustrlm": 0, "langchain": 0, "llamaindex": 0} for m in modes}
 
     rows = []
 
@@ -164,25 +251,28 @@ def main() -> None:
         lc_texts = [t for _, t in lc_results]
         li_texts = [t for _, t in li_results]
 
-        if args.match_mode == "doc_id":
+        gt_doc_ids = set()
+        if "doc_id" in modes:
             gt_doc_ids = ground_truth_to_doc_ids(corpus_tuples, gt_contexts)
-            hit_r = hit_doc_id(rustrlm_doc_ids, gt_doc_ids)
-            hit_lc = hit_doc_id(lc_doc_ids, gt_doc_ids)
-            hit_li = hit_doc_id(li_doc_ids, gt_doc_ids)
-        elif args.match_mode == "relaxed":
-            hit_r = hit_text_relaxed(rustrlm_texts, gt_contexts)
-            hit_lc = hit_text_relaxed(lc_texts, gt_contexts)
-            hit_li = hit_text_relaxed(li_texts, gt_contexts)
-            gt_doc_ids = set()
-        else:
-            hit_r = hit_text_ws_substring(rustrlm_texts, gt_contexts)
-            hit_lc = hit_text_ws_substring(lc_texts, gt_contexts)
-            hit_li = hit_text_ws_substring(li_texts, gt_contexts)
-            gt_doc_ids = set()
 
-        hits_rustrlm += 1 if hit_r else 0
-        hits_langchain += 1 if hit_lc else 0
-        hits_llama += 1 if hit_li else 0
+        per_mode = {}
+        for m in modes:
+            if m == "doc_id":
+                hit_r = hit_doc_id(rustrlm_doc_ids, gt_doc_ids)
+                hit_lc = hit_doc_id(lc_doc_ids, gt_doc_ids)
+                hit_li = hit_doc_id(li_doc_ids, gt_doc_ids)
+            elif m == "relaxed":
+                hit_r = hit_text_relaxed(rustrlm_texts, gt_contexts)
+                hit_lc = hit_text_relaxed(lc_texts, gt_contexts)
+                hit_li = hit_text_relaxed(li_texts, gt_contexts)
+            else:
+                hit_r = hit_text_ws_substring(rustrlm_texts, gt_contexts)
+                hit_lc = hit_text_ws_substring(lc_texts, gt_contexts)
+                hit_li = hit_text_ws_substring(li_texts, gt_contexts)
+            hits[m]["rustrlm"] += 1 if hit_r else 0
+            hits[m]["langchain"] += 1 if hit_lc else 0
+            hits[m]["llamaindex"] += 1 if hit_li else 0
+            per_mode[m] = {"rustrlm": hit_r, "langchain": hit_lc, "llamaindex": hit_li}
 
         rows.append(
             {
@@ -192,21 +282,29 @@ def main() -> None:
                 "rustrlm": rustrlm_results[: args.top_k],
                 "langchain": lc_results[: args.top_k],
                 "llamaindex": li_results[: args.top_k],
-                "hit": {"rustrlm": hit_r, "langchain": hit_lc, "llamaindex": hit_li},
+                "hit": per_mode,
             }
         )
 
-    print("# Comparison (RustRLM vs LangChain BM25 vs LlamaIndex SimpleKeyword)")
+    print("# Comparison (RustRLM vs LangChain vs LlamaIndex)")
+    print(f"LangChain backend: {args.langchain_backend}")
+    print(f"LlamaIndex backend: {args.llamaindex_backend}")
+    if args.langchain_backend == "vector" or args.llamaindex_backend == "vector":
+        print(f"Embedding model: {args.embedding_model}")
     print(f"Match mode: {args.match_mode}")
     print(f"Total queries: {total}")
-    print(
-        "Hit@{k}: RustRLM={r:.2%}, LangChain-BM25={lc:.2%}, LlamaIndex-Simple={li:.2%}".format(
-            k=args.top_k,
-            r=(hits_rustrlm / total) if total else 0.0,
-            lc=(hits_langchain / total) if total else 0.0,
-            li=(hits_llama / total) if total else 0.0,
+    for m in modes:
+        print(
+            "Hit@{k} ({mode}): RustRLM={r:.2%}, {lc_label}={lc:.2%}, {li_label}={li:.2%}".format(
+                k=args.top_k,
+                mode=m,
+                r=(hits[m]["rustrlm"] / total) if total else 0.0,
+                lc_label=lc_label,
+                lc=(hits[m]["langchain"] / total) if total else 0.0,
+                li_label=li_label,
+                li=(hits[m]["llamaindex"] / total) if total else 0.0,
+            )
         )
-    )
 
     print("\n# Sample queries")
     for i, row in enumerate(rows[: args.show], start=1):
@@ -215,9 +313,8 @@ def main() -> None:
             print(f"GT: {row['gt']}")
         if row["gt_doc_ids"]:
             print("GT doc_ids:", ", ".join(row["gt_doc_ids"]))
-        print("RustRLM hit:", row["hit"]["rustrlm"])
-        print("LangChain-BM25 hit:", row["hit"]["langchain"])
-        print("LlamaIndex-Simple hit:", row["hit"]["llamaindex"])
+        for m in modes:
+            print(f"Hit ({m}):", row["hit"][m])
         print("- RustRLM top1:", row["rustrlm"][0][0] if row["rustrlm"] else "", "|", row["rustrlm"][0][1] if row["rustrlm"] else "")
         print("- LangChain top1:", row["langchain"][0][0] if row["langchain"] else "", "|", row["langchain"][0][1] if row["langchain"] else "")
         print("- LlamaIndex top1:", row["llamaindex"][0][0] if row["llamaindex"] else "", "|", row["llamaindex"][0][1] if row["llamaindex"] else "")
