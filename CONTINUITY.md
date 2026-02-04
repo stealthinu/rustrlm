@@ -55,20 +55,19 @@ Done:
   - dataset size: 55 queries => ~132 calls for a full run (single pass)
 - OSS prep:
   - Confirmed referenced unofficial implementation (`upstream/recursive-llm`) uses MIT license.
-  - Plan: add `LICENSE`, rewrite `README.md` (JP+EN), remove unfinished `rlm_runner run`.
+  - Added `LICENSE` (MIT), rewrote `README.md` (JP+EN), removed unfinished `rlm_runner run`.
+- Added GitHub Actions CI:
+  - `.github/workflows/ci.yml` runs Rust (fmt/clippy/test) + Python unit tests on PRs and pushes to `main`.
 
 Now:
-- Add LICENSE (match referenced unofficial implementation if present; otherwise MIT).
-- Rewrite README with clear quickstart + eval usage, in Japanese and English.
-- Decide what to do about `rlm_runner run` (currently TODO) and remove if unnecessary.
-- Add GitHub Actions CI to run Rust (fmt/clippy/test) + Python unit tests on PRs and pushes to `main`.
+- If desired: configure branch protection on GitHub to require CI checks before merge.
 
 Next:
 - If needed: add an “explain” output mode that prints retrieved top-k doc_ids per retriever and highlights why strict/relaxed/doc_id differs.
 - If goal is higher doc_id hit rate: tune RustRLM retrieve prompt and/or change response to always return full doc text + spans (instead of snippet-only) for RAG drop-in.
 
 Open questions (UNCONFIRMED if needed):
-- Unofficial implementation license availability (if missing, use MIT).
+- None.
 
 Working set (files/ids/commands):
 - `python/examples/compare_retrievers_graham_essays.py`
