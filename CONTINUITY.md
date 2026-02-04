@@ -33,11 +33,14 @@ Done:
 - Committed main changes (2 commits):
   - `5a71631` Add strict/relaxed/doc_id match modes for graham essays eval
   - `f28c804` Add eval matching helpers and tests
+- Deleted unused worktrees/branches (discarding their uncommitted changes): `.worktrees/llm-retrieve`, `.worktrees/inprocess-retrieval`, `feature/llm-retrieve`, `feature/inprocess-retrieval`.
+- Estimated OpenAI call volume for graham essays:
+  - sample (first 5 queries): total `debug_rlm_iterations`=12 => ~12 chat.completions calls (avg 2.4 calls/query)
+  - dataset size: 55 queries => ~132 calls for a full run (single pass)
 
 Now:
 - Explain per-query failures for `limit=5` using the new modes (most strict misses are snippet/escaping artifacts; remaining doc_id misses are true retrieval errors).
 - Commit main-branch changes (eval match modes + tests) and delete unused feature worktrees/branches.
-  - Blocker: feature worktrees are dirty (uncommitted changes) so deleting would drop work.
 
 Next:
 - If needed: add an “explain” output mode that prints retrieved top-k doc_ids per retriever and highlights why strict/relaxed/doc_id differs.
