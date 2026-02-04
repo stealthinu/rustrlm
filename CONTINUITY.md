@@ -30,6 +30,11 @@ Done:
   - strict: RustRLM=20%, LangChain-BM25=20%, LlamaIndex=20% (`/tmp/rustrlm_compare_graham_strict.txt`)
   - relaxed: RustRLM=40%, LangChain-BM25=40%, LlamaIndex=20% (`/tmp/rustrlm_compare_graham_relaxed.txt`)
   - doc_id: RustRLM=60%, LangChain-BM25=40%, LlamaIndex=20% (`/tmp/rustrlm_compare_graham_docid.txt`)
+- Ran full eval (55 queries, top_k=3) and computed both match modes in one pass:
+  - strict: RustRLM=14.55% (8/55), LangChain-BM25=45.45% (25/55), LlamaIndex-Simple=45.45% (25/55)
+  - doc_id: RustRLM=58.18% (32/55), LangChain-BM25=49.09% (27/55), LlamaIndex-Simple=45.45% (25/55)
+  - output: `/tmp/rustrlm_compare_graham_full_strict_docid.txt`
+  - RustRLM debug_rlm_iterations sum=123 (avg 2.24 / query) => ~123 chat.completions calls for this run (json_repair not observed in this pass).
 - Committed main changes (2 commits):
   - `5a71631` Add strict/relaxed/doc_id match modes for graham essays eval
   - `f28c804` Add eval matching helpers and tests
