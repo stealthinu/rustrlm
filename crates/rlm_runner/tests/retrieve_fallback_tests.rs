@@ -35,4 +35,3 @@ async fn retrieve_falls_back_when_llm_never_returns_final() {
         .iter()
         .any(|w| w.as_str().unwrap_or("").contains("fallback_used")));
 }
-

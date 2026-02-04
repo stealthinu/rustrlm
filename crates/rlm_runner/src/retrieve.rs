@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use python_string_repl::repl::{ReplConfig, ReplEngine};
 use python_string_repl::repl::state::{ReplState, StoredValue};
+use python_string_repl::repl::{ReplConfig, ReplEngine};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use uuid::Uuid;
@@ -123,7 +123,10 @@ pub async fn retrieve(req: &RetrieveRequest, ctx: &RetrieveContext) -> RetrieveR
 
     let Some(final_text) = loop_result.final_text else {
         if let Some(last) = loop_result.last_response.as_ref() {
-            eprintln!("[retrieve] final_not_found last_response={}", truncate_log(last, 1200));
+            eprintln!(
+                "[retrieve] final_not_found last_response={}",
+                truncate_log(last, 1200)
+            );
         }
         if let Some(err) = loop_result.last_repl_error.as_ref() {
             warnings.push(format!("debug_last_repl_error: {}", truncate_log(err, 300)));
@@ -159,15 +162,13 @@ pub async fn retrieve(req: &RetrieveRequest, ctx: &RetrieveContext) -> RetrieveR
             let mut repaired = None;
             for _ in 0..ctx.max_json_repair {
                 match repair_json_with_llm(ctx, &final_text).await {
-                    Ok(Some(fixed)) => {
-                        match parse_llm_payload(&fixed) {
-                            Ok(p) => {
-                                repaired = Some(p);
-                                break;
-                            }
-                            Err(e) => warnings.push(format!("llm_json_repair_failed: {e}")),
+                    Ok(Some(fixed)) => match parse_llm_payload(&fixed) {
+                        Ok(p) => {
+                            repaired = Some(p);
+                            break;
                         }
-                    }
+                        Err(e) => warnings.push(format!("llm_json_repair_failed: {e}")),
+                    },
                     Ok(None) => warnings.push("llm_json_repair_empty".to_string()),
                     Err(e) => warnings.push(format!("llm_json_repair_error: {e}")),
                 }
@@ -177,8 +178,13 @@ pub async fn retrieve(req: &RetrieveRequest, ctx: &RetrieveContext) -> RetrieveR
                 None => {
                     warnings.push("llm_failed: json_parse_failed".to_string());
                     if use_fallback {
-                        let (results, extra) =
-                            fallback_retrieve(req, top_k, max_chunk_chars, min_score, include_spans);
+                        let (results, extra) = fallback_retrieve(
+                            req,
+                            top_k,
+                            max_chunk_chars,
+                            min_score,
+                            include_spans,
+                        );
                         warnings.push("fallback_used: llm_json_parse_failed".to_string());
                         warnings.extend(extra);
                         return RetrieveResponse {
@@ -211,7 +217,10 @@ pub async fn retrieve(req: &RetrieveRequest, ctx: &RetrieveContext) -> RetrieveR
 
     if results.is_empty() {
         if let Some(last) = loop_result.last_response.as_ref() {
-            eprintln!("[retrieve] empty_results last_response={}", truncate_log(last, 1200));
+            eprintln!(
+                "[retrieve] empty_results last_response={}",
+                truncate_log(last, 1200)
+            );
         }
         warnings.push("llm_failed: empty_results".to_string());
         if use_fallback {
@@ -348,8 +357,12 @@ fn build_results(
             continue;
         }
 
-        let (text, spans, span_warn) =
-            text_and_spans(doc.text.as_str(), item.snippet.as_deref(), max_chunk_chars, include_spans);
+        let (text, spans, span_warn) = text_and_spans(
+            doc.text.as_str(),
+            item.snippet.as_deref(),
+            max_chunk_chars,
+            include_spans,
+        );
         if let Some(w) = span_warn {
             warnings.push(format!("snippet_not_found: {}", w));
         }

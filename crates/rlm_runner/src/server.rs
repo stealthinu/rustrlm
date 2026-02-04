@@ -1,7 +1,7 @@
-use std::net::SocketAddr;
 use axum::extract::State;
 use axum::{routing::get, routing::post, Json, Router};
 use serde_json::json;
+use std::net::SocketAddr;
 use tokio::net::TcpListener;
 use tokio::task::JoinHandle;
 
@@ -23,11 +23,7 @@ impl AppState {
     pub fn new_default() -> Result<Self, LlmError> {
         dotenvy::dotenv().ok();
         // Allow running without an LLM (deterministic fallback-only mode).
-        if std::env::var("RUSTRLM_DISABLE_LLM")
-            .ok()
-            .as_deref()
-            == Some("1")
-        {
+        if std::env::var("RUSTRLM_DISABLE_LLM").ok().as_deref() == Some("1") {
             return Ok(Self::new_with_llm(LlmClient::Mock(MockLlm::new(vec![]))));
         }
 
@@ -73,9 +69,7 @@ pub async fn serve(addr: SocketAddr) -> std::io::Result<()> {
     axum::serve(listener, app(state)).await
 }
 
-pub async fn spawn_test_server_with_mock(
-    responses: Vec<String>,
-) -> (SocketAddr, JoinHandle<()>) {
+pub async fn spawn_test_server_with_mock(responses: Vec<String>) -> (SocketAddr, JoinHandle<()>) {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let state = AppState::new_with_llm(LlmClient::Mock(MockLlm::new(responses)));
@@ -86,6 +80,8 @@ pub async fn spawn_test_server_with_mock(
 }
 
 pub async fn spawn_test_server() -> (SocketAddr, JoinHandle<()>) {
-    spawn_test_server_with_mock(vec![r#"FINAL("""{"results":[],"warnings":[]}""")"#.to_string()])
-        .await
+    spawn_test_server_with_mock(vec![
+        r#"FINAL("""{"results":[],"warnings":[]}""")"#.to_string()
+    ])
+    .await
 }

@@ -204,7 +204,11 @@ fn exec_stmt(
                         )))
                     }
                 },
-                _ => return Err(ReplError::ForbiddenSyntax("unsupported augassign op".into())),
+                _ => {
+                    return Err(ReplError::ForbiddenSyntax(
+                        "unsupported augassign op".into(),
+                    ))
+                }
             };
             env.set(&target, out);
             Ok(Flow::Continue)
@@ -349,12 +353,8 @@ fn bind_for_target(
             env.set(n.id.as_str(), it);
             Ok(())
         }
-        rustpython_parser::ast::Expr::Tuple(t) => {
-            bind_unpack_elts(&t.elts, it, env)
-        }
-        rustpython_parser::ast::Expr::List(t) => {
-            bind_unpack_elts(&t.elts, it, env)
-        }
+        rustpython_parser::ast::Expr::Tuple(t) => bind_unpack_elts(&t.elts, it, env),
+        rustpython_parser::ast::Expr::List(t) => bind_unpack_elts(&t.elts, it, env),
         _ => Err(ReplError::ForbiddenSyntax("for target".into())),
     }
 }
@@ -365,7 +365,9 @@ fn bind_unpack_elts(
     env: &mut Env,
 ) -> Result<(), ReplError> {
     let Value::List(xs) = it else {
-        return Err(ReplError::TypeError("for target expects iterable of lists".into()));
+        return Err(ReplError::TypeError(
+            "for target expects iterable of lists".into(),
+        ));
     };
     if xs.len() != elts.len() {
         return Err(ReplError::ValueError("unpack mismatch".into()));
@@ -885,7 +887,9 @@ fn call_name(
                 return Err(ReplError::ForbiddenSyntax("keyword args".into()));
             }
             if args.is_empty() || args.len() > 3 {
-                return Err(ReplError::TypeError("range() takes 1 to 3 arguments".into()));
+                return Err(ReplError::TypeError(
+                    "range() takes 1 to 3 arguments".into(),
+                ));
             }
             let mut ints = Vec::new();
             for a in &args {
@@ -936,11 +940,7 @@ fn call_name(
     }
 }
 
-fn rank_documents_impl(
-    docs: &[Value],
-    query: &str,
-    top_k: i64,
-) -> Result<Vec<Value>, ReplError> {
+fn rank_documents_impl(docs: &[Value], query: &str, top_k: i64) -> Result<Vec<Value>, ReplError> {
     let top_k = top_k.clamp(0, 20) as usize;
     let terms: Vec<String> = query
         .to_lowercase()
@@ -1086,7 +1086,10 @@ fn call_attr(
         Value::Match(m) => call_match_method(&m, attr, args, kwargs),
         Value::Dict(m) => {
             if attr != "get" {
-                return Err(ReplError::TypeError(format!("object has no attribute {}", attr)));
+                return Err(ReplError::TypeError(format!(
+                    "object has no attribute {}",
+                    attr
+                )));
             }
             if !kwargs.is_empty() {
                 return Err(ReplError::ForbiddenSyntax("keyword args".into()));
@@ -1247,8 +1250,12 @@ fn value_to_json(v: &Value) -> Result<serde_json::Value, ReplError> {
         Value::Bool(b) => serde_json::Value::Bool(*b),
         Value::Int(i) => serde_json::Value::Number((*i).into()),
         Value::Str(s) => serde_json::Value::String(s.clone()),
-        Value::Bytes(b) => serde_json::Value::String(base64::engine::general_purpose::STANDARD.encode(b)),
-        Value::List(xs) => serde_json::Value::Array(xs.iter().map(value_to_json).collect::<Result<_,_>>()?),
+        Value::Bytes(b) => {
+            serde_json::Value::String(base64::engine::general_purpose::STANDARD.encode(b))
+        }
+        Value::List(xs) => {
+            serde_json::Value::Array(xs.iter().map(value_to_json).collect::<Result<_, _>>()?)
+        }
         Value::Dict(m) => {
             let mut out = serde_json::Map::new();
             for (k, vv) in m {

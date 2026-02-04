@@ -267,11 +267,19 @@ fn validate_expr(expr: &ast::Expr) -> Result<(), ReplError> {
                         // Only allow string keys
                         match &c.value {
                             ast::Constant::Str(_) => {}
-                            _ => return Err(ReplError::ForbiddenSyntax("dict key must be str literal".into())),
+                            _ => {
+                                return Err(ReplError::ForbiddenSyntax(
+                                    "dict key must be str literal".into(),
+                                ))
+                            }
                         }
                     }
                     None => return Err(ReplError::ForbiddenSyntax("dict unpack".into())),
-                    _ => return Err(ReplError::ForbiddenSyntax("dict key must be str literal".into())),
+                    _ => {
+                        return Err(ReplError::ForbiddenSyntax(
+                            "dict key must be str literal".into(),
+                        ))
+                    }
                 }
             }
             for v in &e.values {

@@ -61,6 +61,7 @@ Now:
 - Add LICENSE (match referenced unofficial implementation if present; otherwise MIT).
 - Rewrite README with clear quickstart + eval usage, in Japanese and English.
 - Decide what to do about `rlm_runner run` (currently TODO) and remove if unnecessary.
+- Add GitHub Actions CI to run Rust (fmt/clippy/test) + Python unit tests on PRs and pushes to `main`.
 
 Next:
 - If needed: add an “explain” output mode that prints retrieved top-k doc_ids per retriever and highlights why strict/relaxed/doc_id differs.

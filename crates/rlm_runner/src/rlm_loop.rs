@@ -1,7 +1,7 @@
 use std::time::Duration;
 
-use python_string_repl::repl::{ExecRequest, ReplEngine};
 use python_string_repl::repl::state::{ReplState, StoredValue};
+use python_string_repl::repl::{ExecRequest, ReplEngine};
 
 use crate::final_parser::{extract_final, extract_final_var_name};
 use crate::llm_client::{LlmClient, LlmMessage, LlmRequest};
