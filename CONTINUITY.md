@@ -1,5 +1,5 @@
 Goal (incl. success criteria):
-- Compare RustRLM `retrieve` to common vector-RAG retrievers fairly by using the same OpenAI embeddings model in both LangChain and LlamaIndex, and report results under `strict` and `doc_id` match modes.
+- Prepare repo for OSS release: add license, improve README (JP+EN), and remove/clarify unfinished CLI commands (e.g. `rlm_runner run`) to avoid confusion.
 
 Constraints/Assumptions:
 - Follow AGENTS.md instructions for this workspace.
@@ -53,19 +53,21 @@ Done:
 - Estimated OpenAI call volume for graham essays:
   - sample (first 5 queries): total `debug_rlm_iterations`=12 => ~12 chat.completions calls (avg 2.4 calls/query)
   - dataset size: 55 queries => ~132 calls for a full run (single pass)
+- OSS prep:
+  - Confirmed referenced unofficial implementation (`upstream/recursive-llm`) uses MIT license.
+  - Plan: add `LICENSE`, rewrite `README.md` (JP+EN), remove unfinished `rlm_runner run`.
 
 Now:
-- Explain per-query failures for `limit=5` using the new modes (most strict misses are snippet/escaping artifacts; remaining doc_id misses are true retrieval errors).
-- Commit main-branch changes (eval match modes + tests) and delete unused feature worktrees/branches.
+- Add LICENSE (match referenced unofficial implementation if present; otherwise MIT).
+- Rewrite README with clear quickstart + eval usage, in Japanese and English.
+- Decide what to do about `rlm_runner run` (currently TODO) and remove if unnecessary.
 
 Next:
 - If needed: add an “explain” output mode that prints retrieved top-k doc_ids per retriever and highlights why strict/relaxed/doc_id differs.
 - If goal is higher doc_id hit rate: tune RustRLM retrieve prompt and/or change response to always return full doc text + spans (instead of snippet-only) for RAG drop-in.
 
 Open questions (UNCONFIRMED if needed):
-- Whether to preserve or discard uncommitted changes in:
-  - `.worktrees/inprocess-retrieval` (modified `CONTINUITY.md`, `docs/plans/2026-01-26-inprocess-retrieval-implementation-plan.md`)
-  - `.worktrees/llm-retrieve` (many modified Rust files + untracked `data/` and `python/examples/`)
+- Unofficial implementation license availability (if missing, use MIT).
 
 Working set (files/ids/commands):
 - `python/examples/compare_retrievers_graham_essays.py`

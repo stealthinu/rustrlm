@@ -400,12 +400,8 @@ fn truncate_chars(text: &str, max_chars: usize) -> String {
 fn clamp_score(score: f64) -> f64 {
     if score.is_nan() {
         0.0
-    } else if score < 0.0 {
-        0.0
-    } else if score > 1.0 {
-        1.0
     } else {
-        score
+        score.clamp(0.0, 1.0)
     }
 }
 
@@ -414,7 +410,7 @@ fn truncate_log(text: &str, max_chars: usize) -> String {
     let mut out = String::new();
     for (i, ch) in text.chars().enumerate() {
         if i >= max_chars {
-            out.push_str("…");
+            out.push('…');
             break;
         }
         out.push(ch);

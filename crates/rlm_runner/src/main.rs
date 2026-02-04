@@ -10,12 +10,6 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Cmd {
-    Run {
-        #[arg(long)]
-        out_jsonl: String,
-        #[arg(long)]
-        transcript_jsonl: String,
-    },
     Serve {
         #[arg(long, default_value_t = 8080)]
         port: u16,
@@ -28,13 +22,6 @@ enum Cmd {
 async fn main() {
     let cli = Cli::parse();
     match cli.cmd {
-        Cmd::Run {
-            out_jsonl: _,
-            transcript_jsonl: _,
-        } => {
-            eprintln!("TODO: implement rlm_runner");
-            std::process::exit(2);
-        }
         Cmd::Serve { port, host } => {
             let ip: IpAddr = host
                 .parse()

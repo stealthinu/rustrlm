@@ -235,11 +235,7 @@ fn extract_repl_code(content: &str) -> (String, bool) {
     for line in content.lines() {
         let trimmed = line.trim_start();
         if trimmed.starts_with("```") {
-            if in_block {
-                in_block = false;
-            } else {
-                in_block = true;
-            }
+            in_block = !in_block;
             continue;
         }
         if in_block {
