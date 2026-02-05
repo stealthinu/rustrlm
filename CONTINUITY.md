@@ -55,7 +55,7 @@ Done:
   - dataset size: 55 queries => ~132 calls for a full run (single pass)
 - OSS prep:
   - Confirmed referenced unofficial implementation (`upstream/recursive-llm`) uses MIT license.
-  - Added `LICENSE` (MIT), rewrote `README.md` (JP+EN), removed unfinished `rlm_runner run`.
+  - Added `LICENSE` (MIT), split README into EN translation + JA canonical (`README.md` + `README.ja.md`), aligned EN content to JP canonical (no extra Security/Artifacts sections), added paper/implementation references, removed unfinished `rlm_runner run`.
 - Added GitHub Actions CI:
   - `.github/workflows/ci.yml` runs Rust (fmt/clippy/test) + Python unit tests on PRs and pushes to `main`.
 

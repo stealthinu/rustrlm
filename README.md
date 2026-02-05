@@ -7,28 +7,17 @@ It includes:
 - A restricted Python REPL subset (Rust, allowlist-based; no file I/O / networking / subprocesses).
 - A thin Python client + runnable evaluation scripts (LangChain / LlamaIndex baselines included).
 
+**Japanese (canonical)**: `README.ja.md`  
+**English**: this file (translation)
+
 License: MIT (see `LICENSE`).
 
 ---
 
-# RustRLM（日本語）
-
-RustRLM は **Recursive Language Models (RLM)** に着想を得た Rust 実装と、RLM が安全にドキュメントを扱うための
-**制限付き Python REPL サブセット**（Rust実装）を同一リポジトリで開発するプロジェクトです。
-
-含まれるもの:
-- Retrieval API（`POST /v1/retrieve`）を提供する Rust サーバ
-- 安全第一の Python REPL サブセット（allowlist方式、ファイルI/O/ネットワーク/サブプロセス禁止）
-- Python クライアント + 比較/評価スクリプト（LangChain / LlamaIndex ベースライン含む）
-
-ライセンス: MIT（`LICENSE` を参照）
-
----
-
-## Security / Secrets（重要）
-- APIキーは **`.env` に保存**し、**絶対に git にコミットしない**（`.gitignore` 済み）。
-- Issue やチャットにキーを貼らないでください。
-- `.env` の例は `.env.example` を参照してください。
+## Prerequisites
+- Rust (stable) + Cargo
+- Python 3
+- If you enable LLM calls: `OPENAI_API_KEY` (recommended: store it in `.env`)
 
 ## Workspace Layout
 - `crates/python_string_repl`: restricted Python REPL subset (library)
@@ -81,10 +70,6 @@ python3 python/examples/compare_retrievers_graham_essays.py \
   --embedding-model text-embedding-3-small
 ```
 
-Notes:
-- Vector baselines use OpenAI embeddings and will incur API cost.
-- `match-mode both` computes both `strict` and `doc_id` in one run to avoid double-running RustRLM retrieval.
-
 ## REPL CLI (JSON in/out)
 stdin: one JSON (`context/query/code`)
 ```bash
@@ -110,6 +95,11 @@ PYTHONPATH=python:vendor/python python3 -m unittest -v \
   python.tests.test_eval_matching
 ```
 
-## Large Local Artifacts
-`upstream/` (external repos), `extracted/` (logs/artifacts), and `vendor/python/` (vendored deps) are intentionally gitignored.
-For design/progress notes, see `docs/` and `CONTINUITY.md`.
+## References
+- Paper: [Recursive Language Models](https://arxiv.org/abs/2512.24601) (arXiv:2512.24601)
+- Blog: [Recursive Language Models | Alex L. Zhang](https://alexzhang13.github.io/blog/2025/rlm/)
+- Official implementations:
+  - [alexzhang13/rlm](https://github.com/alexzhang13/rlm)
+  - [alexzhang13/rlm-minimal](https://github.com/alexzhang13/rlm-minimal)
+- Unofficial implementation:
+  - [ysz/recursive-llm](https://github.com/ysz/recursive-llm)
